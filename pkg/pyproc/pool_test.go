@@ -2,6 +2,7 @@ package pyproc
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -318,5 +319,81 @@ func TestPoolHealthCheck(t *testing.T) {
 	}
 	if health.HealthyWorkers != opts.Config.Workers {
 		t.Errorf("expected %d healthy workers, got %d", opts.Config.Workers, health.HealthyWorkers)
+	}
+}
+
+func TestIOBoundConcurrency(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping IO-bound concurrency test in short mode")
+	}
+
+	opts := PoolOptions{
+		Config: PoolConfig{
+			Workers:     1,
+			MaxInFlight: 4,
+		},
+		WorkerConfig: WorkerConfig{
+			SocketPath:        "/tmp/test-io-concurrency.sock",
+			PythonExec:        "python3",
+			WorkerScript:      "../../examples/io_bound/worker.py",
+			StartTimeout:      5 * time.Second,
+			WorkerConcurrency: 4,
+		},
+	}
+
+	pool, err := NewPool(opts, nil)
+	if err != nil {
+		t.Fatalf("NewPool failed: %v", err)
+	}
+	defer func() { _ = pool.Shutdown(context.Background()) }()
+
+	ctx := context.Background()
+	if err := pool.Start(ctx); err != nil {
+		t.Fatalf("pool.Start failed: %v", err)
+	}
+
+	numRequests := 4
+	errCh := make(chan error, numRequests)
+	var wg sync.WaitGroup
+	wg.Add(numRequests)
+
+	start := time.Now()
+
+	for i := 0; i < numRequests; i++ {
+		go func(idx int) {
+			defer wg.Done()
+
+			input := map[string]interface{}{
+				"url":   fmt.Sprintf("http://example.com/%d", idx),
+				"delay": 1.0,
+			}
+			var output map[string]interface{}
+
+			callCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+
+			if err := pool.Call(callCtx, "fetch_remote_data", input, &output); err != nil {
+				errCh <- err
+				return
+			}
+
+			if _, ok := output["thread_id"]; !ok {
+				errCh <- fmt.Errorf("missing thread_id in response: %v", output)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("IO-bound call failed: %v", err)
+		}
+	}
+
+	elapsed := time.Since(start)
+	if elapsed > 3*time.Second {
+		t.Fatalf("expected IO-bound concurrency to finish within 3s, took %v", elapsed)
 	}
 }
