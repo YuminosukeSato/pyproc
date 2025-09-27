@@ -12,7 +12,10 @@ import os
 import socket
 import struct
 import sys
+import threading
 import traceback
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Callable
 
@@ -54,15 +57,11 @@ class FramedConnection:
 
     def read_message(self) -> bytes | None:
         """Read a framed message from the socket."""
-        # Read 4-byte length header
         length_bytes = self._read_exact(4)
         if not length_bytes:
             return None
 
-        # Parse length (big-endian)
         length = struct.unpack(">I", length_bytes)[0]
-
-        # Read message body
         message = self._read_exact(length)
         if not message:
             msg = "Failed to read complete message"
@@ -72,20 +71,17 @@ class FramedConnection:
 
     def write_message(self, data: bytes) -> None:
         """Write a framed message to the socket."""
-        # Write 4-byte length header (big-endian)
         length = len(data)
         self.conn.sendall(struct.pack(">I", length))
-
-        # Write message body
         self.conn.sendall(data)
 
-    def _read_exact(self, n: int) -> bytes | None:
-        """Read exactly n bytes from the socket."""
+    def _read_exact(self, num_bytes: int) -> bytes | None:
+        """Read exactly num_bytes from the socket."""
         data = b""
-        while len(data) < n:
-            chunk = self.conn.recv(n - len(data))
+        while len(data) < num_bytes:
+            chunk = self.conn.recv(num_bytes - len(data))
             if not chunk:
-                return None if len(data) == 0 else data
+                return data if data else None
             data += chunk
         return data
 
@@ -93,59 +89,84 @@ class FramedConnection:
 class Worker:
     """Main worker class that handles requests from Go."""
 
-    def __init__(self, socket_path: str, codec_type: str = "auto") -> None:
+    def __init__(self, socket_path: str, codec_type: str = "auto", concurrency: int = 1) -> None:
         self.socket_path = socket_path
-        self.codec = get_codec(codec_type)
-        self.conn = None
-        self.framed_conn = None
+        self.codec_type = codec_type
+        codec_preview = get_codec(codec_type)
+        self.codec_name = codec_preview.name
         self.tracing = get_tracing()
         self.cancellation_manager = CancellationManager()
-        logger.info("Using codec: %s", self.codec.name)
+        self.concurrency = max(1, concurrency)
+        self._shutdown = threading.Event()
+        self._connection_executor: ThreadPoolExecutor | None = None
+
+        if self.concurrency > 1:
+            self._connection_executor = ThreadPoolExecutor(
+                max_workers=self.concurrency,
+                thread_name_prefix="pyproc-worker",
+            )
+            logger.info("Using threaded mode with %d workers", self.concurrency)
+
+        logger.info("Using codec: %s", self.codec_name)
 
     def start(self) -> None:
         """Start the worker and listen for requests."""
-        # Remove socket file if it exists
         socket_file = Path(self.socket_path)
         if socket_file.exists():
             socket_file.unlink()
 
-        # Create Unix domain socket
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.bind(self.socket_path)
-        sock.listen(1)
+        sock.listen(self.concurrency)
+        sock.settimeout(1.0)
 
         logger.info("Worker listening on %s", self.socket_path)
 
-        while True:
-            try:
-                # Accept connection
-                conn, _ = sock.accept()
-                self.conn = conn
-                self.framed_conn = FramedConnection(conn, self.codec)
+        try:
+            while not self._shutdown.is_set():
+                try:
+                    conn, _ = sock.accept()
+                except socket.timeout:
+                    continue
+                except OSError as exc:
+                    if self._shutdown.is_set():
+                        break
+                    logger.error("Socket accept error: %s", exc)
+                    continue
 
-                logger.info("Accepted connection")
+                if self._connection_executor:
+                    try:
+                        self._connection_executor.submit(self._handle_connection, conn)
+                    except RuntimeError:
+                        with suppress(Exception):
+                            conn.close()
+                else:
+                    self._handle_connection(conn)
 
-                # Handle requests on this connection
-                self._handle_connection()
+        except KeyboardInterrupt:
+            logger.info("Worker shutting down")
+        finally:
+            self._shutdown.set()
+            with suppress(Exception):
+                sock.close()
+            if self._connection_executor:
+                self._connection_executor.shutdown(wait=True)
 
-            except KeyboardInterrupt:
-                logger.info("Worker shutting down")
-                break
-            except Exception:
-                logger.exception("Connection error")
-                if self.conn:
-                    self.conn.close()
+    def _create_codec(self) -> Codec:
+        """Create a new codec instance for the connection."""
+        return get_codec(self.codec_type)
 
-    def _handle_connection(self) -> None:
-        """Handle requests on the current connection."""
-        current_request_id = None
-        while True:
-            try:
-                # Read message
-                message = self.framed_conn.read_message()
+    def _handle_connection(self, conn: socket.socket) -> None:
+        """Serve a single connection until it is closed."""
+        codec = self._create_codec()
+        framed_conn = FramedConnection(conn, codec)
+        current_request_id: int | None = None
+
+        try:
+            while not self._shutdown.is_set():
+                message = framed_conn.read_message()
                 if not message:
                     logger.info("Connection closed by client")
-                    # If we have an active request, mark it as cancelled
                     if current_request_id is not None:
                         self.cancellation_manager.cancel_request(
                             current_request_id,
@@ -154,59 +175,62 @@ class Worker:
                         current_request_id = None
                     break
 
-                # Parse message
-                msg_data = self.framed_conn.codec.decode(message)
+                msg_data = framed_conn.codec.decode(message)
 
-                # Check if it's a wrapped message with type
-                if isinstance(msg_data, dict) and "type" in msg_data:
-                    msg_type = msg_data.get("type")
-                    payload = msg_data.get("payload", {})
+                request = self._extract_request(msg_data)
+                if request is None:
+                    continue
 
-                    if msg_type == "cancellation":
-                        # Handle cancellation message
-                        self._handle_cancellation(payload)
-                        continue  # No response needed for cancellation
-                    if msg_type == "request":
-                        request = payload
-                    else:
-                        logger.warning(f"Unknown message type: {msg_type}")
-                        continue
-                else:
-                    # Legacy format - treat as request
-                    request = msg_data
+                logger.debug("Received request: %s", request)
 
-                logger.debug(f"Received request: {request}")
-
-                # Track current request ID for cancellation
                 current_request_id = request.get("id", 0)
-
-                # Process request
                 response = self._process_request(request)
-
-                # Clear current request ID after processing
                 current_request_id = None
 
-                # Send response in legacy format for now
-                # NOTE: Will switch to wrapped format once Go side is updated
-                response_bytes = self.framed_conn.codec.encode(response)
-                self.framed_conn.write_message(response_bytes)
+                response_bytes = framed_conn.codec.encode(response)
+                framed_conn.write_message(response_bytes)
 
-            except BrokenPipeError:
-                # Connection closed due to cancellation - this is expected behavior
-                logger.debug(
-                    "Connection closed by client during response (likely due to cancellation)",
-                )
-                break
-            except Exception as e:
-                logger.exception("Error handling request")
-                # Try to send error response
-                try:
-                    error_response = {"id": 0, "ok": False, "error": str(e)}
-                    response_bytes = self.framed_conn.codec.encode(error_response)
-                    self.framed_conn.write_message(response_bytes)
-                except Exception:  # noqa: S110
-                    pass
-                break
+        except BrokenPipeError:
+            logger.debug(
+                "Connection closed by client during response (likely due to cancellation)",
+            )
+        except Exception as exc:
+            logger.exception("Error handling request")
+            try:
+                error_response = {"id": current_request_id or 0, "ok": False, "error": str(exc)}
+                response_bytes = framed_conn.codec.encode(error_response)
+                framed_conn.write_message(response_bytes)
+            except Exception:
+                logger.debug("Error sending error response to client")
+        finally:
+            with suppress(Exception):
+                conn.close()
+
+    def _extract_request(self, message: Any) -> dict[str, Any] | None:
+        """Normalize incoming message payloads into request dictionaries."""
+        if isinstance(message, dict) and "type" in message:
+            msg_type = message.get("type")
+            payload = message.get("payload", {})
+
+            if msg_type == "cancellation":
+                self._handle_cancellation(payload)
+                return None
+
+            if msg_type != "request":
+                logger.warning("Unknown message type: %s", msg_type)
+                return None
+
+            if not isinstance(payload, dict):
+                logger.warning("Invalid payload type: %s", type(payload))
+                return None
+
+            return payload
+
+        if not isinstance(message, dict):
+            logger.warning("Invalid request message: %s", type(message))
+            return None
+
+        return message
 
     def _process_request(self, request: dict[str, Any]) -> dict[str, Any]:
         """Process a single request and return a response."""
@@ -214,94 +238,86 @@ class Worker:
         method = request.get("method", "")
         body = request.get("body", {})
 
-        # Check if method is exposed
         if method not in _exposed_functions:
             return {"id": req_id, "ok": False, "error": f"Method '{method}' not found"}
 
-        # Create tracing context for this request
         with (
             self.tracing.trace_request(request) as span,
             self.cancellation_manager.track_request(req_id) as cancel_event,
         ):
             try:
-                # Call the exposed function
                 func = _exposed_functions[method]
 
-                # Check if function accepts cancel_event parameter
                 sig = inspect.signature(func)
                 if "cancel_event" in sig.parameters:
-                    # Function supports cancellation
                     result = func(body, cancel_event=cancel_event)
                 else:
-                    # Function doesn't support cancellation, just call it
                     result = func(body)
 
                 response = {"id": req_id, "ok": True, "body": result}
-
-                # Add trace headers to response
                 self.tracing.add_response_headers(response)
-
                 return response
 
-            except CancellationError as e:
-                # Request was cancelled
-                logger.info(f"Request {req_id} cancelled: {e.reason}")
-                return {"id": req_id, "ok": False, "error": f"Cancelled: {e.reason}"}
+            except CancellationError as exc:
+                logger.info("Request %s cancelled: %s", req_id, exc.reason)
+                return {"id": req_id, "ok": False, "error": f"Cancelled: {exc.reason}"}
 
-            except Exception as e:
-                # Capture the full traceback for debugging
-                tb = traceback.format_exc()
-                logger.exception("Error in method '%s': %s", method, tb)
+            except Exception as exc:
+                traceback_text = traceback.format_exc()
+                logger.exception("Error in method '%s': %s", method, traceback_text)
 
                 if span:
-                    # Record exception in span
-                    span.record_exception(e)
+                    span.record_exception(exc)
 
-                return {"id": req_id, "ok": False, "error": str(e)}
+                return {"id": req_id, "ok": False, "error": str(exc)}
 
     def _handle_cancellation(self, cancellation_msg: dict[str, Any]) -> None:
-        """Handle a cancellation message from Go.
-
-        Args:
-            cancellation_msg: Cancellation message with 'id' and 'reason' fields
-
-        """
+        """Handle a cancellation message from Go."""
         req_id = cancellation_msg.get("id", 0)
         reason = cancellation_msg.get("reason", "context cancelled")
-
-        logger.info(f"Received cancellation for request {req_id}: {reason}")
-
-        # Cancel the request
+        logger.info("Received cancellation for request %s: %s", req_id, reason)
         self.cancellation_manager.cancel_request(req_id, reason)
 
 
-def run_worker(socket_path: str | None = None, codec_type: str = "auto") -> None:
-    """Run the worker with the specified socket path.
-
-    Args:
-        socket_path: Path to the Unix domain socket.
-                    If not provided, uses environment variable PYPROC_SOCKET_PATH.
-        codec_type: Type of codec to use ("auto", "json", "orjson", "msgspec", "msgpack")
-                   "auto" will choose the fastest available codec.
-
-    """
+def run_worker(
+    socket_path: str | None = None,
+    codec_type: str = "auto",
+    concurrency: int | None = None,
+) -> None:
+    """Run the worker with the specified socket path."""
     if socket_path is None:
         socket_path = os.environ.get("PYPROC_SOCKET_PATH")
         if not socket_path:
             msg = "Socket path must be provided or set in PYPROC_SOCKET_PATH"
             raise ValueError(msg)
 
-    # Check for codec type from environment variable
     env_codec = os.environ.get("PYPROC_CODEC_TYPE")
     if env_codec:
         codec_type = env_codec
 
-    worker = Worker(socket_path, codec_type)
+    if concurrency is None:
+        env_concurrency = os.environ.get("PYPROC_WORKER_CONCURRENCY")
+        if env_concurrency:
+            try:
+                concurrency = int(env_concurrency)
+            except ValueError:
+                logger.warning(
+                    "Invalid PYPROC_WORKER_CONCURRENCY value: %s, using default 1",
+                    env_concurrency,
+                )
+                concurrency = 1
+        else:
+            concurrency = 1
+
+    if concurrency <= 0:
+        logger.warning("Invalid concurrency value %s, using default 1", concurrency)
+        concurrency = 1
+
+    worker = Worker(socket_path, codec_type, concurrency)
     worker.start()
 
 
-# Health check method (always available)
 @expose
-def health(_req):
+def health(_req: dict[str, Any]) -> dict[str, Any]:
     """Health check endpoint."""
     return {"status": "healthy", "pid": os.getpid()}
