@@ -38,9 +38,10 @@ type RestartConfig struct {
 
 // PythonConfig defines Python runtime settings
 type PythonConfig struct {
-	Executable   string            `mapstructure:"executable"`
-	WorkerScript string            `mapstructure:"worker_script"`
-	Env          map[string]string `mapstructure:"env"`
+	Executable        string            `mapstructure:"executable"`
+	WorkerScript      string            `mapstructure:"worker_script"`
+	Env               map[string]string `mapstructure:"env"`
+	WorkerConcurrency int               `mapstructure:"worker_concurrency"`
 }
 
 // SocketConfig defines Unix domain socket settings
@@ -135,6 +136,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("python.env", map[string]string{
 		"PYTHONUNBUFFERED": "1",
 	})
+	v.SetDefault("python.worker_concurrency", 1) // Default to single-threaded for backward compatibility
 
 	// Socket defaults
 	v.SetDefault("socket.dir", "/tmp")

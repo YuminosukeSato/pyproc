@@ -27,12 +27,13 @@ const (
 
 // WorkerConfig defines configuration for a single worker
 type WorkerConfig struct {
-	ID           string
-	SocketPath   string
-	PythonExec   string
-	WorkerScript string
-	Env          map[string]string
-	StartTimeout time.Duration
+	ID                string
+	SocketPath        string
+	PythonExec        string
+	WorkerScript      string
+	Env               map[string]string
+	StartTimeout      time.Duration
+	WorkerConcurrency int
 }
 
 // Worker represents a single Python worker process
@@ -96,6 +97,9 @@ func (w *Worker) Start(ctx context.Context) error {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 	cmd.Env = append(cmd.Env, fmt.Sprintf("PYPROC_SOCKET_PATH=%s", w.cfg.SocketPath))
+	if w.cfg.WorkerConcurrency > 0 {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("PYPROC_WORKER_CONCURRENCY=%d", w.cfg.WorkerConcurrency))
+	}
 
 	// Capture output for debugging
 	cmd.Stdout = os.Stdout
