@@ -30,6 +30,11 @@ python:
   # Worker script path
   worker_script: "./worker.py"
   
+  # Worker concurrency (threads per worker process)
+  # 1 = single-threaded (default, best for CPU-bound tasks)
+  # > 1 = multi-threaded (for IO-bound tasks)
+  worker_concurrency: 1
+  
   # Environment variables for Python process
   env:
     PYTHONUNBUFFERED: "1"
