@@ -78,6 +78,14 @@ semaphore := make(chan struct{}, workers * maxInFlight)
 - Process liveness verification
 - Automatic restart on failure (configurable)
 
+### IO-Bound Concurrency
+
+- Python workers now accept multiple socket connections in parallel.
+- `WorkerConcurrency` controls the number of threads servicing requests per process.
+- Each connection maintains request ordering while enabling overlapping IO waits.
+- Go pools require no API change; set the concurrency field in `WorkerConfig`.
+- Use the IO-bound worker example to validate throughput before production rollout.
+
 ## Protocol Specification
 
 ### Framing Protocol
