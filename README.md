@@ -79,6 +79,7 @@ pyproc is **NOT** designed for:
 - **Minimal Overhead** - 45μs p50 latency, 200,000+ req/s with 8 workers
 - **Production Ready** - Health checks, graceful shutdown, automatic restarts
 - **Easy Deployment** - Single binary + Python scripts, no service mesh needed
+- **IO-Bound Support** - Optional multi-threading for concurrent IO operations
 
 ## 🚀 Quick Start (5 minutes)
 
@@ -218,6 +219,38 @@ poolCfg := pyproc.PoolConfig{
     MaxInFlight:    10,                   // Max concurrent requests per worker
     HealthInterval: 30 * time.Second,     // Health check frequency
 }
+```
+
+#### IO-Bound Task Configuration (New!)
+For IO-bound workloads (network requests, database queries), enable threading:
+
+```go
+// Enable multi-threading for IO-bound tasks
+poolOpts := pyproc.PoolOptions{
+    Config: poolCfg,
+    WorkerConfig: pyproc.WorkerConfig{
+        // ... other config ...
+        WorkerConcurrency: 4,  // Enable 4 threads per worker
+    },
+}
+```
+
+Python worker with threading:
+```python
+from pyproc_worker import expose, run_worker
+import time
+import requests
+
+@expose
+def fetch_data(req):
+    """IO-bound operation - benefits from threading"""
+    url = req["url"]
+    response = requests.get(url)  # Thread releases GIL during I/O
+    return {"status": response.status_code, "data": response.json()}
+
+if __name__ == "__main__":
+    # Concurrency is set by Go side via PYPROC_WORKER_CONCURRENCY
+    run_worker()
 ```
 
 ### Python Worker Development
