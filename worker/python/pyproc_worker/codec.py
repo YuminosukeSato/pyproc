@@ -1,8 +1,10 @@
 """Codec implementations for pyproc worker."""
 
+from __future__ import annotations
+
 import json
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, cast
 
 try:
     import orjson
@@ -11,12 +13,20 @@ try:
 except ImportError:
     HAS_ORJSON = False
 
-try:
-    import msgspec
+msgspec_json_module: Any = None
+msgspec_msgpack_module: Any = None
 
-    HAS_MSGSPEC = True
+try:
+    from msgspec import json as _msgspec_json_module
+    from msgspec import msgpack as _msgspec_msgpack_module
 except ImportError:
     HAS_MSGSPEC = False
+    msgspec_json_module = None
+    msgspec_msgpack_module = None
+else:
+    HAS_MSGSPEC = True
+    msgspec_json_module = cast("Any", _msgspec_json_module)
+    msgspec_msgpack_module = cast("Any", _msgspec_msgpack_module)
 
 
 class Codec(ABC):
@@ -73,11 +83,11 @@ class MsgspecCodec(Codec):
     """msgspec-based codec (fastest, with type validation)."""
 
     def __init__(self) -> None:
-        if not HAS_MSGSPEC:
-            msg = "msgspec is not installed. Install with: pip install msgspec"
+        if not HAS_MSGSPEC or msgspec_json_module is None:
+            msg = "msgspec is not installed. Install with: uv add msgspec"
             raise ImportError(msg)
-        self.encoder = msgspec.json.Encoder()
-        self.decoder = msgspec.json.Decoder()
+        self.encoder = msgspec_json_module.Encoder()
+        self.decoder = msgspec_json_module.Decoder()
 
     def encode(self, obj: Any) -> bytes:
         return self.encoder.encode(obj)
@@ -94,11 +104,11 @@ class MsgpackCodec(Codec):
     """MessagePack codec using msgspec."""
 
     def __init__(self) -> None:
-        if not HAS_MSGSPEC:
-            msg = "msgspec is not installed. Install with: pip install msgspec"
+        if not HAS_MSGSPEC or msgspec_msgpack_module is None:
+            msg = "msgspec is not installed. Install with: uv add msgspec"
             raise ImportError(msg)
-        self.encoder = msgspec.msgpack.Encoder()
-        self.decoder = msgspec.msgpack.Decoder()
+        self.encoder = msgspec_msgpack_module.Encoder()
+        self.decoder = msgspec_msgpack_module.Decoder()
 
     def encode(self, obj: Any) -> bytes:
         return self.encoder.encode(obj)
