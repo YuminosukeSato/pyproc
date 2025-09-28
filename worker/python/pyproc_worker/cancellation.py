@@ -6,6 +6,7 @@ allowing them to be interrupted when the Go side cancels the context.
 
 from __future__ import annotations
 
+import inspect
 import logging
 import threading
 from contextlib import contextmanager
@@ -165,7 +166,7 @@ class CancellationManager:
             raise CancellationError(request_id)
 
 
-def make_cancellable(func: Callable) -> Callable:
+def make_cancellable(func: Callable[..., Any]) -> Callable[[dict[str, Any], threading.Event], Any]:
     """Decorator to make a function cancellable.
 
     The decorated function should accept a 'cancel_event' parameter
@@ -178,17 +179,19 @@ def make_cancellable(func: Callable) -> Callable:
         Wrapped function that handles cancellation
 
     """
+    accepts_cancel_event = "cancel_event" in inspect.signature(func).parameters
 
     def wrapper(request: dict[str, Any], cancel_event: threading.Event) -> Any:
         """Wrapper that adds cancellation checking."""
         # Pass the cancel_event to the function
-        if "cancel_event" in func.__code__.co_varnames:
+        if accepts_cancel_event:
             return func(request, cancel_event=cancel_event)
         # Function doesn't support cancellation, just call it
         return func(request)
 
-    wrapper.__name__ = func.__name__
-    wrapper.__doc__ = func.__doc__
+    func_name = getattr(func, "__name__", wrapper.__name__)
+    wrapper.__name__ = func_name
+    wrapper.__doc__ = getattr(func, "__doc__", wrapper.__doc__)
     return wrapper
 
 
