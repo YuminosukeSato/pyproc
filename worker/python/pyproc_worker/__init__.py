@@ -14,7 +14,7 @@ import struct
 import sys
 import traceback
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, TypeVar
 
 from .cancellation import CancellationError, CancellationManager
 from .codec import Codec, get_codec
@@ -29,10 +29,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Registry for exposed functions
-_exposed_functions: dict[str, Callable] = {}
+_exposed_functions: dict[str, Callable[..., Any]] = {}
+_ExposedFunc = TypeVar("_ExposedFunc", bound=Callable[..., Any])
 
 
-def expose(func: Callable) -> Callable:
+def expose(func: _ExposedFunc) -> _ExposedFunc:
     """Expose a Python function to Go.
 
     Usage:
@@ -40,8 +41,9 @@ def expose(func: Callable) -> Callable:
         def my_function(req):
             return {"result": req["input"] * 2}
     """
-    _exposed_functions[func.__name__] = func
-    logger.info("Exposed function: %s", func.__name__)
+    func_name = getattr(func, "__name__", repr(func))
+    _exposed_functions[func_name] = func
+    logger.info("Exposed function: %s", func_name)
     return func
 
 

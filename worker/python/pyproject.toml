@@ -5,50 +5,32 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyproc-worker"
 version = "0.1.0"
-authors = [
-    {name = "YuminosukeSato"},
-]
+authors = [{ name = "YuminosukeSato" }]
 description = "Python worker for pyproc - Call Python from Go without CGO"
 readme = "README.md"
 requires-python = ">=3.9,<3.13"
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "License :: OSI Approved :: Apache Software License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Operating System :: POSIX",
-    "Operating System :: Unix",
-    "Operating System :: MacOS",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: POSIX",
+  "Operating System :: Unix",
+  "Operating System :: MacOS",
 ]
 keywords = ["pyproc", "worker", "go", "python", "ipc", "rpc", "unix-socket"]
-dependencies = [
-    "orjson>=3.9.0",
-]
+dependencies = ["orjson>=3.9.0"]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.21",
-    "ruff>=0.1.0",
-    "ty>=0.0.1a19",
-]
-fast = [
-    "msgspec>=0.18.0",
-]
-telemetry = [
-    "opentelemetry-api>=1.20.0",
-    "opentelemetry-sdk>=1.20.0",
-]
-examples = [
-    "numpy>=1.26.0",
-    "pandas>=2.0.0",
-    "scikit-learn>=1.3.0",
-]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.21", "ruff>=0.1.0", "ty>=0.0.1a19"]
+fast = ["msgspec>=0.18.0"]
+telemetry = ["opentelemetry-api>=1.20.0", "opentelemetry-sdk>=1.20.0"]
+examples = ["numpy>=1.26.0", "pandas>=2.0.0", "scikit-learn>=1.3.0"]
 
 [project.urls]
 Homepage = "https://github.com/YuminosukeSato/pyproc"
@@ -71,46 +53,46 @@ docstring-code-format = true
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "D1",    # undocumented
-    "D203",  # one blank line before class
-    "D213",  # multi-line summary second line
-    "TD001", # invalid todo tag
-    "TD002", # missing todo author
-    "TD003", # missing todo link
-    "PD011", # pandas use of dot values
-    "S101",  # use of assert in tests
-    "ANN201", # missing return type annotation for public function
-    "ANN202", # missing return type annotation for private function
-    "ANN001", # missing type annotation for function argument
-    "ANN204", # missing return type annotation for special method
-    "ANN401", # dynamically typed expressions (Any)
-    "TRY002", # create custom exception
-    "TRY003", # avoid long messages outside exception class
-    "TRY300", # consider moving to else block
-    "TRY301", # abstract raise to inner function
-    "TRY400", # use logging.exception instead of logging.error
-    "TRY401", # redundant exception in logging
-    "BLE001", # do not catch blind exception
-    "PERF203", # try-except in loop
-    "EM101", # exception string literal
-    "EM102", # exception f-string
-    "G004",  # logging f-string
-    "FA100", # future annotations
-    "PTH110", # use pathlib exists
-    "PTH108", # use pathlib unlink
-    "PLR0911", # too many return statements
-    "FBT001", # boolean typed positional argument
-    "FBT002", # boolean default positional argument
-    "PLW0603", # using global statement
-    "D401",  # first line imperative mood
-    "ARG001", # unused function argument
-    "F841",  # local variable assigned but never used
-    "UP035",  # deprecated typing
-    "PLC0415", # import should be at top-level
+  "D1",      # undocumented
+  "D203",    # one blank line before class
+  "D213",    # multi-line summary second line
+  "TD001",   # invalid todo tag
+  "TD002",   # missing todo author
+  "TD003",   # missing todo link
+  "PD011",   # pandas use of dot values
+  "S101",    # use of assert in tests
+  "ANN201",  # missing return type annotation for public function
+  "ANN202",  # missing return type annotation for private function
+  "ANN001",  # missing type annotation for function argument
+  "ANN204",  # missing return type annotation for special method
+  "ANN401",  # dynamically typed expressions (Any)
+  "TRY002",  # create custom exception
+  "TRY003",  # avoid long messages outside exception class
+  "TRY300",  # consider moving to else block
+  "TRY301",  # abstract raise to inner function
+  "TRY400",  # use logging.exception instead of logging.error
+  "TRY401",  # redundant exception in logging
+  "BLE001",  # do not catch blind exception
+  "PERF203", # try-except in loop
+  "EM101",   # exception string literal
+  "EM102",   # exception f-string
+  "G004",    # logging f-string
+  "FA100",   # future annotations
+  "PTH110",  # use pathlib exists
+  "PTH108",  # use pathlib unlink
+  "PLR0911", # too many return statements
+  "FBT001",  # boolean typed positional argument
+  "FBT002",  # boolean default positional argument
+  "PLW0603", # using global statement
+  "D401",    # first line imperative mood
+  "ARG001",  # unused function argument
+  "F841",    # local variable assigned but never used
+  "UP035",   # deprecated typing
+  "PLC0415", # import should be at top-level
 ]
 unfixable = [
-    "F401", # unused import
-    "F841", # unused variable
+  "F401", # unused import
+  "F841", # unused variable
 ]
 
 logger-objects = ["src.library.logger.LOGGER"]
@@ -122,3 +104,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+
+[tool.ty.rules]
+# ルールの重要度を設定（ignore / warn / error）
+unresolved-import = "error"
+possibly-unresolved-reference = "warn"
