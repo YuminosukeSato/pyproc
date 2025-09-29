@@ -100,6 +100,9 @@ jobs:
 
       - name: Ruff format check
         run: uv run ruff format --check .
+      
+      - name: ty check
+        run: ty check .
 
       - name: Pytest
         run: uv run pytest -q
