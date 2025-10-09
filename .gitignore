@@ -57,3 +57,6 @@ bench/results/
 # Log files
 *.log
 logs/
+
+# serena
+.serena/
