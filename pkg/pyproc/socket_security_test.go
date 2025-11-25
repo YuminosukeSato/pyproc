@@ -108,6 +108,7 @@ func TestVerifyPeerCredentials(t *testing.T) {
 }
 
 func TestSecureListener(t *testing.T) {
+	requireUnixSocket(t)
 	tmpDir := t.TempDir()
 
 	cfg := SocketSecurityConfig{

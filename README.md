@@ -3,6 +3,8 @@
 *Run Python like a local function from Go — no CGO, no microservices.*
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/YuminosukeSato/pyproc.svg)](https://pkg.go.dev/github.com/YuminosukeSato/pyproc)
+[![Go Report Card](https://goreportcard.com/badge/github.com/YuminosukeSato/pyproc)](https://goreportcard.com/report/github.com/YuminosukeSato/pyproc)
+[![Go Coverage](https://github.com/YuminosukeSato/pyproc/wiki/coverage.svg)](https://raw.githack.com/wiki/YuminosukeSato/pyproc/coverage.html)
 [![PyPI](https://img.shields.io/pypi/v/pyproc-worker.svg)](https://pypi.org/project/pyproc-worker/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![CI](https://github.com/YuminosukeSato/pyproc/actions/workflows/ci.yml/badge.svg)](https://github.com/YuminosukeSato/pyproc/actions/workflows/ci.yml)
@@ -712,6 +714,8 @@ resources:
 ## Contributing
 
 We welcome contributions! Check out our ["help wanted"](https://github.com/YuminosukeSato/pyproc/labels/help%20wanted) issues to get started.
+Issues and PRs receive an initial response within 14 days; stable releases keep open bug reports under 6 months.
+PR descriptions must include links to pkg.go.dev, Go Report Card, and Coverage.
 
 ## License
 

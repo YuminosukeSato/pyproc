@@ -10,6 +10,7 @@ import (
 
 // createTestPool creates a new pool for testing
 func createTestPool(t *testing.T, id string) *Pool {
+	requireUnixSocket(t)
 	// Use /tmp directly with short names to avoid 104 char Unix socket path limit on macOS
 	// Note: pool.go adds "-0" for worker ID, so keep the base path very short
 	tmpDir := filepath.Join("/tmp", "pyproc")

@@ -57,3 +57,9 @@ bench/results/
 # Log files
 *.log
 logs/
+
+# Test artifacts
+coverage.out
+coverage.txt
+.gocache/
+.gomodcache/

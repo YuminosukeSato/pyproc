@@ -7,7 +7,7 @@ on:
     branches: [ "**" ]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   go:
@@ -70,14 +70,23 @@ jobs:
           version: latest
           args: --timeout=5m
 
-      - name: Test
+      - name: Test with coverage
         shell: bash
         run: |
           set -euo pipefail
           pkgs=$(go list ./... | grep -v '/bench')
           if [ -n "$pkgs" ]; then
-            echo "$pkgs" | xargs -r -n1 go test -timeout 5m -v -race
+            go test -timeout 5m -v -race -coverprofile=coverage.out -covermode=atomic $pkgs
           fi
+
+      - name: Update coverage report
+        uses: ncruces/go-coverage-report@v0
+        with:
+          report: true
+          chart: true
+          amend: true
+        if: github.event_name == 'push'
+        continue-on-error: true
 
   python:
     name: Python lint and tests (uv)
@@ -185,3 +194,4 @@ jobs:
           args: --config .lychee.toml README.md "docs/**/*.md"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

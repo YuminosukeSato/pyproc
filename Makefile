@@ -1,4 +1,4 @@
-.PHONY: demo bench bench-quick bench-full bench-comparison fmt lint test deps-python
+.PHONY: demo bench bench-quick bench-full bench-comparison fmt lint test deps-python coverage
 
 demo:
 	GO111MODULE=on go run ./examples/basic
@@ -47,3 +47,8 @@ lint:
 	@golangci-lint run ./...
 	@cd worker/python && ruff check . || true
 
+coverage:
+	@echo "Running coverage..."
+	@export GOMODCACHE=$(PWD)/.gomodcache; export GOCACHE=$(PWD)/.gocache; \
+	pkgs=$$(go list ./internal/... | grep -v '/bench'); [ -z "$$pkgs" ] || TMPDIR=/tmp GOMODCACHE=$(PWD)/.gomodcache GOCACHE=$(PWD)/.gocache go test -covermode=atomic -coverprofile=coverage.out $$pkgs
+	@GOMODCACHE=$(PWD)/.gomodcache GOCACHE=$(PWD)/.gocache go tool cover -func=coverage.out | tee coverage.txt
