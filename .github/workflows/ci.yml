@@ -79,6 +79,14 @@ jobs:
             go test -timeout 5m -v -race -coverprofile=coverage.out -covermode=atomic $pkgs
           fi
 
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.out
+          fail_ci_if_error: false
+        if: github.event_name == 'push'
+
       - name: Update coverage report
         uses: ncruces/go-coverage-report@v0
         with:
