@@ -7,6 +7,7 @@ import (
 )
 
 func TestTypedPool(t *testing.T) {
+	requireUnixSocket(t)
 	t.Run("TypedPool with PredictRequest", func(t *testing.T) {
 		// Create a regular pool
 		opts := PoolOptions{

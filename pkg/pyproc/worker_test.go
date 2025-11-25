@@ -11,6 +11,7 @@ import (
 )
 
 func TestWorker_Start(t *testing.T) {
+	requireUnixSocket(t)
 	// Create a test worker script
 	tmpDir := t.TempDir()
 	workerScript := filepath.Join(tmpDir, "test_worker.py")
@@ -83,6 +84,7 @@ if __name__ == "__main__":
 }
 
 func TestWorker_Stop(t *testing.T) {
+	requireUnixSocket(t)
 	// Similar setup as TestWorker_Start
 	tmpDir := t.TempDir()
 	workerScript := filepath.Join(tmpDir, "test_worker.py")
@@ -143,6 +145,7 @@ if __name__ == "__main__":
 }
 
 func TestWorker_Restart(t *testing.T) {
+	requireUnixSocket(t)
 	tmpDir := t.TempDir()
 	workerScript := filepath.Join(tmpDir, "test_worker.py")
 	socketPath := filepath.Join(tmpDir, "test.sock")
@@ -215,6 +218,7 @@ if __name__ == "__main__":
 }
 
 func TestWorker_StartTimeout(t *testing.T) {
+	requireUnixSocket(t)
 	tmpDir := t.TempDir()
 	workerScript := filepath.Join(tmpDir, "slow_worker.py")
 	socketPath := filepath.Join(tmpDir, "test.sock")
@@ -270,6 +274,7 @@ run_worker("` + socketPath + `")
 }
 
 func TestWorker_InvalidScript(t *testing.T) {
+	requireUnixSocket(t)
 	cfg := WorkerConfig{
 		ID:           "invalid-worker",
 		SocketPath:   "/tmp/test.sock",

@@ -37,6 +37,7 @@ func TestNewPool(t *testing.T) {
 }
 
 func TestPoolStart(t *testing.T) {
+	requireUnixSocket(t)
 	opts := PoolOptions{
 		Config: PoolConfig{
 			Workers:     2,
@@ -71,6 +72,7 @@ func TestPoolStart(t *testing.T) {
 }
 
 func TestPoolCall(t *testing.T) {
+	requireUnixSocket(t)
 	opts := PoolOptions{
 		Config: PoolConfig{
 			Workers:     2,
@@ -245,6 +247,7 @@ func TestPoolBackpressure(t *testing.T) {
 }
 
 func TestPoolShutdown(t *testing.T) {
+	requireUnixSocket(t)
 	opts := PoolOptions{
 		Config: PoolConfig{
 			Workers:     2,
@@ -283,6 +286,7 @@ func TestPoolShutdown(t *testing.T) {
 }
 
 func TestPoolHealthCheck(t *testing.T) {
+	requireUnixSocket(t)
 	opts := PoolOptions{
 		Config: PoolConfig{
 			Workers:        2,

@@ -15,6 +15,7 @@ import (
 
 // TestGoToPythonCommunication tests actual communication between Go and Python
 func TestGoToPythonCommunication(t *testing.T) {
+	requireUnixSocket(t)
 	// Create a temporary Python worker script
 	tmpDir := t.TempDir()
 	workerScript := filepath.Join(tmpDir, "test_worker.py")
@@ -272,6 +273,7 @@ if __name__ == "__main__":
 
 // TestMultipleRequests tests sending multiple requests over the same connection
 func TestMultipleRequests(t *testing.T) {
+	requireUnixSocket(t)
 	// Skip if Python is not available
 	if _, err := exec.LookPath("python3"); err != nil {
 		t.Skip("Python3 not available")
