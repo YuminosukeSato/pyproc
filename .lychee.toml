@@ -7,5 +7,6 @@ accept = ["200..299", "403"]
 # Exclude raw.githack.com coverage link until Wiki is populated by first CI push
 exclude = [
   "https://pkg.go.dev/github.com/YuminosukeSato/pyproc",
-  "https://raw.githack.com/wiki/YuminosukeSato/pyproc/coverage.html"
+  "https://raw.githack.com/wiki/YuminosukeSato/pyproc/coverage.html",
+  "https://man7.org/.*"
 ]
