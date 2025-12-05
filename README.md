@@ -62,6 +62,82 @@ pyproc is **NOT** designed for:
 - **Real-time streaming** - Use Apache Kafka or similar for high-throughput streams
 - **Database operations** - Use native Go database drivers directly
 
+## 🔄 Alternatives & Comparison
+
+pyproc is a **dedicated IPC engine for integrating Python ML/DS code into Go services on the same host**. It differs from general-purpose plugin systems and embedded runtimes in design philosophy.
+
+| Solution | Pros | Cons | Best For |
+|----------|------|------|----------|
+| **go-embed-python** | ✅ Python runtime embedded / No Python installation required on host | ❌ Increased binary size / Python operations are DIY | Tools distributed as a single binary |
+| **go-plugin (HashiCorp)** | ✅ Multi-language plugin support / Proven in Terraform, Vault | ❌ Requires gRPC proto definitions / Not optimized for Python | Language-agnostic plugin architecture |
+| **pyproc** | ✅ Optimized for ML/DS workloads / Built-in worker pool, health checks, auto-restart / Ultra-low latency (~45µs p50) | ❌ Python-only / Same-host only | Integrating Python ML/DS into Go services |
+
+### When to Choose What
+
+**Choose go-embed-python if:**
+
+- You want to distribute a single binary (no Python required on host)
+- Increased binary size is acceptable
+
+**Choose go-plugin if:**
+
+- You need multi-language support (Rust, Ruby, etc.) beyond Python
+- You're integrating with HashiCorp ecosystem
+
+**Choose pyproc if:**
+
+- You're calling Python ML models (PyTorch, TensorFlow) or DS libraries (pandas, NumPy) from Go
+- You need low latency (<100µs) on the same host
+- You want built-in worker pool management, health checks, and auto-restart
+
+### Non-Goals (Recap)
+
+pyproc is **NOT** designed for:
+
+- ❌ **General-purpose plugin system** → Use go-plugin
+- ❌ **Embedded Python runtime** → Consider go-embed-python
+- ❌ **Cross-host communication** → Use gRPC/REST microservices
+- ❌ **GPU cluster management** → Use Ray Serve, Triton
+
+## 🔐 Trust Model & Security Considerations
+
+### pyproc is designed for trusted code execution
+
+pyproc is **NOT a sandbox environment**. It operates under the following assumptions:
+
+- ✅ **Target**: Python code developed and managed by your organization (ML models, data processing logic)
+- ✅ **Process isolation**: Python crashes do not affect the Go service
+- ❌ **No security isolation**: Python workers can access the same filesystem and network as the parent Go process
+
+### Intended Use Cases
+
+**✅ Recommended:**
+
+- Running your own trained PyTorch/TensorFlow models for inference
+- Data transformation pipelines using pandas/NumPy
+- Integrating scikit-learn models into Go recommendation engines
+
+**❌ Not Recommended:**
+
+- Executing arbitrary user-submitted Python scripts
+- Dynamically loading third-party plugins
+- Running untrusted code
+
+### Security Details
+
+For detailed threat model, security architecture, and best practices, see [SECURITY.md](docs/security.md).
+
+**Key Guarantees:**
+
+- OS-level access control via Unix Domain Socket filesystem permissions
+- Fault tolerance through process isolation
+- Configurable resource limits (memory, CPU)
+
+**Limitations:**
+
+- Inter-process communication on the same host only (cross-host is out of scope)
+- Does not provide sandbox environment (use gVisor, Firecracker if needed)
+
 ## 📋 Compatibility Matrix
 
 | Component | Requirements |
