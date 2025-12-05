@@ -154,7 +154,7 @@ For detailed threat model, security architecture, and best practices, see [SECUR
 
 - **No CGO Required** - Pure Go implementation using Unix Domain Sockets
 - **Bypass Python GIL** - Run multiple Python processes in parallel
-- **Function-like API** - Call Python functions as easily as `pool.Call(ctx, "predict", input, &output)`
+- **Type-Safe API** - Call Python with compile-time type checking using Go generics (zero overhead)
 - **Minimal Overhead** - 45μs p50 latency, 200,000+ req/s with 8 workers
 - **Production Ready** - Health checks, graceful shutdown, automatic restarts
 - **Easy Deployment** - Single binary + Python scripts, no service mesh needed
@@ -188,7 +188,7 @@ if __name__ == "__main__":
     run_worker()
 ```
 
-### 3. Call from Go
+### 3. Call from Go (Type-Safe API - Recommended)
 
 ```go
 package main
@@ -199,6 +199,15 @@ import (
     "log"
     "github.com/YuminosukeSato/pyproc/pkg/pyproc"
 )
+
+// Define request/response types (compile-time type safety)
+type PredictRequest struct {
+    Value float64 `json:"value"`
+}
+
+type PredictResponse struct {
+    Result float64 `json:"result"`
+}
 
 func main() {
     // Create a pool of Python workers
@@ -216,23 +225,23 @@ func main() {
     if err != nil {
         log.Fatal(err)
     }
-    
+
     // Start all workers
     ctx := context.Background()
     if err := pool.Start(ctx); err != nil {
         log.Fatal(err)
     }
     defer pool.Shutdown(ctx)
-    
-    // Call Python function (automatically load-balanced)
-    input := map[string]interface{}{"value": 42}
-    var output map[string]interface{}
-    
-    if err := pool.Call(ctx, "predict", input, &output); err != nil {
+
+    // Call Python function with type safety (automatically load-balanced)
+    result, err := pyproc.CallTyped[PredictRequest, PredictResponse](
+        ctx, pool, "predict", PredictRequest{Value: 42},
+    )
+    if err != nil {
         log.Fatal(err)
     }
-    
-    fmt.Printf("Result: %v\n", output["result"]) // Result: 84
+
+    fmt.Printf("Result: %v\n", result.Result) // Result: 84 (type-safe!)
 }
 ```
 
