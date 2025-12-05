@@ -142,3 +142,71 @@ def test_run_command_backward_compatibility():
 
     # Should show help without error
     assert "Python worker for pyproc" in result.stdout or result.returncode == 0
+
+
+def test_detect_env_json_format():
+    """Test that 'pyproc-worker detect-env' detects Python environment."""
+    result = subprocess.run(
+        [sys.executable, "-m", "pyproc_worker.cli", "detect-env", "--format", "json"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, f"Command failed: {result.stderr}"
+
+    # Parse JSON output
+    env_info = json.loads(result.stdout)
+
+    # Verify structure
+    assert "python_executable" in env_info
+    assert "python_version" in env_info
+    assert "virtual_env_type" in env_info
+    assert "virtual_env_path" in env_info
+
+    # Verify python_executable is valid
+    assert env_info["python_executable"] == sys.executable
+
+    # Verify python_version format (e.g., "3.10.0")
+    version = env_info["python_version"]
+    assert isinstance(version, str)
+    parts = version.split(".")
+    min_version_parts = 2
+    assert len(parts) >= min_version_parts
+
+
+def test_detect_env_shell_format():
+    """Test that 'pyproc-worker detect-env --format shell' outputs shell variables."""
+    result = subprocess.run(
+        [sys.executable, "-m", "pyproc_worker.cli", "detect-env", "--format", "shell"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, f"Command failed: {result.stderr}"
+
+    # Verify shell export format
+    output = result.stdout
+    assert "export PYPROC_PYTHON_EXEC=" in output
+    assert sys.executable in output
+
+
+def test_detect_env_detects_venv():
+    """Test that detect-env correctly identifies venv environments."""
+    result = subprocess.run(
+        [sys.executable, "-m", "pyproc_worker.cli", "detect-env", "--format", "json"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+
+    env_info = json.loads(result.stdout)
+
+    # If running in venv, should detect it
+    # sys.prefix != sys.base_prefix indicates venv
+    if sys.prefix != sys.base_prefix:
+        assert env_info["virtual_env_type"] in ["venv", "virtualenv"]
+        assert env_info["virtual_env_path"] is not None

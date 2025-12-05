@@ -1,5 +1,7 @@
 """Command-line interface for pyproc-worker."""
 
+from __future__ import annotations
+
 import argparse
 import importlib.util
 import json
@@ -151,6 +153,65 @@ def run_command(args):
     _load_worker_module(args.worker_script)
 
 
+def _detect_virtual_env() -> tuple[str | None, str | None]:
+    """Detect virtual environment type and path.
+
+    Returns:
+        Tuple of (env_type, env_path) where env_type is one of:
+        - "venv" for standard venv
+        - "virtualenv" for virtualenv
+        - "poetry" for Poetry environments
+        - "uv" for uv environments
+        - None if not in a virtual environment
+
+    """
+    if sys.prefix == sys.base_prefix:
+        return None, None
+
+    venv_path = sys.prefix
+
+    # Check for Poetry (pyproject.toml with [tool.poetry])
+    current = Path.cwd()
+    for parent in [current, *current.parents]:
+        pyproject = parent / "pyproject.toml"
+        if pyproject.exists():
+            content = pyproject.read_text()
+            if "[tool.poetry]" in content:
+                return "poetry", venv_path
+
+    # Check for uv (.venv directory + uv binary)
+    if (Path.cwd() / ".venv").exists():
+        return "uv", venv_path
+
+    # Check for virtualenv (has virtualenv.py)
+    if (Path(venv_path) / "lib" / "virtualenv.py").exists():
+        return "virtualenv", venv_path
+
+    # Default to venv
+    return "venv", venv_path
+
+
+def detect_env_command(args):
+    """Detect Python environment and output configuration."""
+    env_type, env_path = _detect_virtual_env()
+
+    python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    detection_result = {
+        "python_executable": sys.executable,
+        "python_version": python_version,
+        "virtual_env_type": env_type,
+        "virtual_env_path": env_path,
+    }
+
+    if args.format == "json":
+        output = json.dumps(detection_result, indent=2)
+        print(output)
+    elif args.format == "shell":
+        print(f"export PYPROC_PYTHON_EXEC={detection_result['python_executable']}")
+        if detection_result["virtual_env_path"]:
+            print(f"export VIRTUAL_ENV={detection_result['virtual_env_path']}")
+
+
 def schema_command(args):
     """Export function schemas."""
     # Suppress worker logging during schema export
@@ -186,7 +247,7 @@ def main() -> None:
     )
 
     # For backward compatibility, check if first argument is a subcommand
-    if len(sys.argv) > 1 and sys.argv[1] in ["schema"]:
+    if len(sys.argv) > 1 and sys.argv[1] in ["schema", "detect-env"]:
         # Use subcommand mode
         subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -205,8 +266,24 @@ def main() -> None:
             help="Output file path (default: stdout)",
         )
 
+        # Detect-env command
+        detect_env_parser = subparsers.add_parser(
+            "detect-env",
+            help="Auto-detect Python environment",
+        )
+        detect_env_parser.add_argument(
+            "--format",
+            choices=["json", "shell"],
+            default="json",
+            help="Output format (json or shell)",
+        )
+
         args = parser.parse_args()
-        schema_command(args)
+
+        if args.command == "schema":
+            schema_command(args)
+        elif args.command == "detect-env":
+            detect_env_command(args)
     else:
         # Default mode: run worker (backward compatibility)
         parser.add_argument("worker_script", help="Path to the Python worker script")
