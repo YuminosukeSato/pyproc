@@ -2,6 +2,7 @@ package pyproc
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -275,8 +276,8 @@ func TestTypedAPI_JSONMarshalError(t *testing.T) {
 
 	// Define a type with an unmarshalable field (function)
 	type UnmarshalableRequest struct {
-		Value int                    `json:"value"`
-		Fn    func() string          `json:"fn"` // Functions cannot be JSON-marshaled
+		Value int           `json:"value"`
+		Fn    func() string `json:"fn"` // Functions cannot be JSON-marshaled
 	}
 
 	type SimpleResponse struct {
@@ -298,25 +299,9 @@ func TestTypedAPI_JSONMarshalError(t *testing.T) {
 
 	// Check that error message mentions marshaling
 	errMsg := err.Error()
-	if !contains(errMsg, "marshal") && !contains(errMsg, "json") {
+	if !strings.Contains(errMsg, "marshal") && !strings.Contains(errMsg, "json") {
 		t.Errorf("Error message should mention marshaling or JSON, got: %v", errMsg)
 	}
-}
-
-// helper function to check if string contains substring (case-insensitive)
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
-		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-		findSubstring(s, substr)))
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // TestTypedAPI_ResponseTypeMismatch tests that CallTyped returns a clear error
