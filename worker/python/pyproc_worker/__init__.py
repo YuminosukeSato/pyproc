@@ -6,6 +6,7 @@ allowing Python functions to be exposed and called from Go.
 
 from __future__ import annotations
 
+import dataclasses
 import inspect
 import logging
 import os
@@ -99,6 +100,51 @@ def _handle_generic_type(origin: type | None, args: tuple[type, ...]) -> dict[st
     return None
 
 
+def _handle_class_type(py_type: type) -> dict[str, object] | None:
+    """Handle dataclass types.
+
+    Args:
+        py_type: Python type to check
+
+    Returns:
+        JSON schema dict for dataclass types, or None if not a dataclass
+
+    """
+    if not dataclasses.is_dataclass(py_type):
+        return None
+
+    # Get dataclass fields
+    fields = dataclasses.fields(py_type)
+
+    # Build properties schema
+    properties = {}
+    required_fields = []
+
+    for field in fields:
+        field_schema = _python_type_to_json_schema(field.type)
+        properties[field.name] = field_schema
+
+        # Check if field is required (no default value)
+        if field.default == dataclasses.MISSING and field.default_factory == dataclasses.MISSING:
+            required_fields.append(field.name)
+
+    # Check if dataclass is frozen (Python 3.10+ has __dataclass_params__)
+    is_frozen = False
+    if hasattr(py_type, "__dataclass_params__"):
+        is_frozen = py_type.__dataclass_params__.frozen
+
+    schema: dict[str, object] = {
+        "type": "object",
+        "properties": properties,
+        "frozen": is_frozen,
+    }
+
+    if required_fields:
+        schema["required"] = required_fields
+
+    return schema
+
+
 def _python_type_to_json_schema(py_type: type | object) -> dict[str, object]:
     """Convert Python type hint to JSON schema-like structure.
 
@@ -114,6 +160,11 @@ def _python_type_to_json_schema(py_type: type | object) -> dict[str, object]:
         basic_schema = _handle_basic_type(py_type)
         if basic_schema is not None:
             return basic_schema
+
+        # Handle dataclass types (before generic types)
+        class_schema = _handle_class_type(py_type)
+        if class_schema is not None:
+            return class_schema
 
     # Handle generic types
     origin = get_origin(py_type)
