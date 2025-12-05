@@ -210,3 +210,95 @@ def test_detect_env_detects_venv():
     if sys.prefix != sys.base_prefix:
         assert env_info["virtual_env_type"] in ["venv", "virtualenv"]
         assert env_info["virtual_env_path"] is not None
+
+
+def test_check_worker_valid():
+    """Test that 'pyproc-worker check' succeeds for valid worker."""
+    fixtures_dir = Path(__file__).parent / "fixtures"
+    worker_path = fixtures_dir / "worker_with_types.py"
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pyproc_worker.cli", "check", str(worker_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, f"Check failed: {result.stderr}"
+    assert "✓" in result.stdout or "PASS" in result.stdout
+
+
+def test_check_worker_nonexistent():
+    """Test that 'pyproc-worker check' fails for nonexistent worker."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pyproc_worker.cli",
+            "check",
+            "/nonexistent/worker.py",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode != 0
+    assert "does not exist" in result.stdout or "not found" in result.stdout.lower()
+
+
+def test_check_worker_syntax_error():
+    """Test that 'pyproc-worker check' detects syntax errors."""
+    import tempfile
+
+    # Create temp file with syntax error
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".py",
+        delete=False,
+    ) as f:
+        f.write("def invalid syntax here\n")
+        temp_path = Path(f.name)
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pyproc_worker.cli", "check", str(temp_path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode != 0
+        assert "syntax" in result.stdout.lower() or "invalid" in result.stdout.lower()
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()
+
+
+def test_check_worker_missing_expose():
+    """Test that 'pyproc-worker check' warns about missing @expose functions."""
+    import tempfile
+
+    # Create temp file without @expose functions
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        suffix=".py",
+        delete=False,
+    ) as f:
+        f.write("def some_function():\n    pass\n")
+        temp_path = Path(f.name)
+
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pyproc_worker.cli", "check", str(temp_path)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        # Should succeed but warn
+        assert result.returncode == 0
+        assert "@expose" in result.stdout or "no exposed" in result.stdout.lower()
+    finally:
+        if temp_path.exists():
+            temp_path.unlink()

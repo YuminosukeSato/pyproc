@@ -177,6 +177,16 @@ def _python_type_to_json_schema(py_type: type | object) -> dict[str, object]:
     return {"type": "any"}
 
 
+def get_exposed_functions() -> dict[str, Callable[..., object]]:
+    """Get all exposed functions.
+
+    Returns:
+        Dictionary mapping function names to callable functions
+
+    """
+    return _exposed_functions
+
+
 def get_exposed_schemas() -> dict[str, object]:
     """Get all exposed function schemas.
 

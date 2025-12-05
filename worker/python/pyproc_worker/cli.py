@@ -212,6 +212,202 @@ def detect_env_command(args):
             print(f"export VIRTUAL_ENV={detection_result['virtual_env_path']}")
 
 
+PYTHON_MAJOR_VERSION = 3
+PYTHON_MIN_MINOR_VERSION = 9
+PYTHON_RECOMMENDED_MINOR_VERSION = 12
+
+
+def _check_worker_exists(worker_path: Path, worker_script: str) -> dict:
+    """Check if worker script exists."""
+    if not worker_path.exists():
+        return {
+            "check": "worker_script_exists",
+            "status": "fail",
+            "message": f"Worker script does not exist: {worker_script}",
+        }
+    return {
+        "check": "worker_script_exists",
+        "status": "pass",
+        "message": f"Found worker script: {worker_script}",
+    }
+
+
+def _check_worker_syntax(worker_path: Path, worker_script: str) -> dict:
+    """Check if worker script has valid Python syntax."""
+    try:
+        with worker_path.open() as f:
+            compile(f.read(), worker_script, "exec")
+        return {
+            "check": "worker_script_syntax",
+            "status": "pass",
+            "message": "Worker script has valid Python syntax",
+        }
+    except SyntaxError as e:
+        return {
+            "check": "worker_script_syntax",
+            "status": "fail",
+            "message": f"Syntax error in worker script: {e}",
+        }
+
+
+def _check_exposed_functions(worker_script: str) -> dict:
+    """Check if worker script has @expose functions."""
+    try:
+        logging.basicConfig(level=logging.ERROR)
+        _load_worker_module(worker_script)
+
+        import pyproc_worker
+
+        exposed_funcs = pyproc_worker.get_exposed_functions()
+        health_excluded = {k: v for k, v in exposed_funcs.items() if k != "health"}
+
+        if len(health_excluded) == 0:
+            return {
+                "check": "exposed_functions",
+                "status": "warn",
+                "message": "No @expose functions found (excluding health)",
+            }
+
+        func_names = ", ".join(health_excluded.keys())
+        return {
+            "check": "exposed_functions",
+            "status": "pass",
+            "message": f"Found {len(health_excluded)} exposed functions: {func_names}",
+        }
+    except Exception as e:
+        return {
+            "check": "exposed_functions",
+            "status": "fail",
+            "message": f"Failed to import worker script: {e}",
+        }
+
+
+def _check_dependencies() -> dict:
+    """Check required and optional dependencies."""
+    required_deps = ["pyproc_worker"]
+    optional_deps = ["orjson", "msgspec"]
+
+    missing_required = []
+    available_optional = []
+
+    for dep in required_deps:
+        try:
+            __import__(dep)
+        except ImportError:
+            missing_required.append(dep)
+
+    for dep in optional_deps:
+        try:
+            __import__(dep)
+            available_optional.append(dep)
+        except ImportError:
+            pass
+
+    if missing_required:
+        return {
+            "check": "dependencies",
+            "status": "fail",
+            "message": f"Missing required dependencies: {', '.join(missing_required)}",
+        }
+
+    optional_str = ", ".join(available_optional) if available_optional else "none"
+    return {
+        "check": "dependencies",
+        "status": "pass",
+        "message": f"All required dependencies installed. Optional: {optional_str}",
+    }
+
+
+def _check_python_version() -> dict:
+    """Check Python version."""
+    major, minor = sys.version_info.major, sys.version_info.minor
+    min_version = (PYTHON_MAJOR_VERSION, PYTHON_MIN_MINOR_VERSION)
+
+    if (major, minor) < min_version:
+        return {
+            "check": "python_version",
+            "status": "fail",
+            "message": f"Python {major}.{minor} is not supported. Requires Python 3.9+",
+        }
+
+    if major == PYTHON_MAJOR_VERSION and minor >= PYTHON_RECOMMENDED_MINOR_VERSION:
+        msg = f"Python {major}.{minor} (recommended)"
+    else:
+        msg = f"Python {major}.{minor}"
+
+    return {
+        "check": "python_version",
+        "status": "pass",
+        "message": msg,
+    }
+
+
+def _print_check_results(checks: list[dict]) -> None:
+    """Print validation results."""
+    print("=== pyproc Worker Validation ===\n")
+
+    passed = sum(1 for c in checks if c["status"] == "pass")
+    failed = sum(1 for c in checks if c["status"] == "fail")
+    warned = sum(1 for c in checks if c["status"] == "warn")
+
+    for check in checks:
+        if check["status"] == "pass":
+            icon = "✓"
+        elif check["status"] == "fail":
+            icon = "✗"
+        else:
+            icon = "⚠"
+        print(f"{icon} {check['check']}: {check['message']}")
+
+    print(f"\nSummary: {passed} passed, {failed} failed, {warned} warnings")
+
+
+def check_command(args):
+    """Validate worker script and environment."""
+    worker_path = Path(args.worker_script)
+    checks = []
+
+    # Check 1: Worker script exists
+    check = _check_worker_exists(worker_path, args.worker_script)
+    checks.append(check)
+    if check["status"] == "fail":
+        print(f"✗ {check['check']}: {check['message']}")
+        sys.exit(1)
+
+    # Check 2: Worker script has valid Python syntax
+    check = _check_worker_syntax(worker_path, args.worker_script)
+    checks.append(check)
+    if check["status"] == "fail":
+        print(f"✗ {check['check']}: {check['message']}")
+        sys.exit(1)
+
+    # Check 3: Worker script has @expose functions
+    check = _check_exposed_functions(args.worker_script)
+    checks.append(check)
+    if check["status"] == "fail":
+        print(f"✗ {check['check']}: {check['message']}")
+        sys.exit(1)
+    if check["status"] == "warn":
+        print(f"⚠ {check['check']}: {check['message']}")
+
+    # Check 4: Required dependencies
+    check = _check_dependencies()
+    checks.append(check)
+    if check["status"] == "fail":
+        print(f"✗ {check['check']}: {check['message']}")
+        sys.exit(1)
+
+    # Check 5: Python version
+    check = _check_python_version()
+    checks.append(check)
+    if check["status"] == "fail":
+        print(f"✗ {check['check']}: {check['message']}")
+        sys.exit(1)
+
+    # Print results
+    _print_check_results(checks)
+
+
 def schema_command(args):
     """Export function schemas."""
     # Suppress worker logging during schema export
@@ -247,7 +443,7 @@ def main() -> None:
     )
 
     # For backward compatibility, check if first argument is a subcommand
-    if len(sys.argv) > 1 and sys.argv[1] in ["schema", "detect-env"]:
+    if len(sys.argv) > 1 and sys.argv[1] in ["schema", "detect-env", "check"]:
         # Use subcommand mode
         subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -278,12 +474,21 @@ def main() -> None:
             help="Output format (json or shell)",
         )
 
+        # Check command
+        check_parser = subparsers.add_parser(
+            "check",
+            help="Validate worker script and environment",
+        )
+        check_parser.add_argument("worker_script", help="Path to the Python worker script")
+
         args = parser.parse_args()
 
         if args.command == "schema":
             schema_command(args)
         elif args.command == "detect-env":
             detect_env_command(args)
+        elif args.command == "check":
+            check_command(args)
     else:
         # Default mode: run worker (backward compatibility)
         parser.add_argument("worker_script", help="Path to the Python worker script")
