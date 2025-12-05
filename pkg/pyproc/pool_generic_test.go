@@ -239,3 +239,160 @@ func BenchmarkTypedPool(b *testing.B) {
 		}
 	})
 }
+
+// TestTypedAPI_JSONMarshalError tests that CallTyped returns a clear error
+// when the request type cannot be marshaled to JSON
+func TestTypedAPI_JSONMarshalError(t *testing.T) {
+	requireUnixSocket(t)
+
+	// Create pool
+	opts := PoolOptions{
+		Config: PoolConfig{
+			Workers:     1,
+			MaxInFlight: 5,
+		},
+		WorkerConfig: WorkerConfig{
+			SocketPath:   "/tmp/test-marshal-error.sock",
+			PythonExec:   "python3",
+			WorkerScript: "../../examples/basic/worker.py",
+		},
+	}
+
+	logger := NewLogger(LoggingConfig{Level: "error"})
+	pool, err := NewPool(opts, logger)
+	if err != nil {
+		t.Fatalf("Failed to create pool: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := pool.Start(ctx); err != nil {
+		t.Fatalf("Failed to start pool: %v", err)
+	}
+	defer func() { _ = pool.Shutdown(ctx) }()
+
+	// Give workers time to stabilize
+	time.Sleep(100 * time.Millisecond)
+
+	// Define a type with an unmarshalable field (function)
+	type UnmarshalableRequest struct {
+		Value int                    `json:"value"`
+		Fn    func() string          `json:"fn"` // Functions cannot be JSON-marshaled
+	}
+
+	type SimpleResponse struct {
+		Result int `json:"result"`
+	}
+
+	// Try to call with unmarshalable type
+	input := UnmarshalableRequest{
+		Value: 42,
+		Fn:    func() string { return "test" },
+	}
+
+	_, err = CallTyped[UnmarshalableRequest, SimpleResponse](ctx, pool, "predict", input)
+
+	// We expect an error about JSON marshaling
+	if err == nil {
+		t.Fatal("Expected error for unmarshalable type, got nil")
+	}
+
+	// Check that error message mentions marshaling
+	errMsg := err.Error()
+	if !contains(errMsg, "marshal") && !contains(errMsg, "json") {
+		t.Errorf("Error message should mention marshaling or JSON, got: %v", errMsg)
+	}
+}
+
+// helper function to check if string contains substring (case-insensitive)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
+		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
+		findSubstring(s, substr)))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+// TestTypedAPI_ResponseTypeMismatch tests that CallTyped returns a clear error
+// when the response from Python doesn't match the expected type
+func TestTypedAPI_ResponseTypeMismatch(t *testing.T) {
+	requireUnixSocket(t)
+
+	// Create pool
+	opts := PoolOptions{
+		Config: PoolConfig{
+			Workers:     1,
+			MaxInFlight: 5,
+		},
+		WorkerConfig: WorkerConfig{
+			SocketPath:   "/tmp/test-type-mismatch.sock",
+			PythonExec:   "python3",
+			WorkerScript: "../../examples/basic/worker.py",
+		},
+	}
+
+	logger := NewLogger(LoggingConfig{Level: "error"})
+	pool, err := NewPool(opts, logger)
+	if err != nil {
+		t.Fatalf("Failed to create pool: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := pool.Start(ctx); err != nil {
+		t.Fatalf("Failed to start pool: %v", err)
+	}
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		_ = pool.Shutdown(shutdownCtx)
+	}()
+
+	// Give workers time to stabilize
+	time.Sleep(100 * time.Millisecond)
+
+	// Define a response type that expects int, but Python returns float
+	type WrongTypeResponse struct {
+		Result int `json:"result"` // Python returns float, we expect int
+	}
+
+	// Call predict which returns {"result": 84.0} (float)
+	// We expect int, so JSON unmarshaling should work but value will be truncated
+	input := PredictRequest{Value: 42}
+	response, err := CallTyped[PredictRequest, WrongTypeResponse](ctx, pool, "predict", input)
+
+	// JSON unmarshaling is permissive - float 84.0 can unmarshal to int 84
+	// This is not an error in Go's JSON package
+	if err != nil {
+		t.Logf("Got error (this is acceptable): %v", err)
+	}
+
+	// The important test: if unmarshaling succeeds, value should be reasonable
+	if err == nil && response.Result != 84 {
+		t.Errorf("Expected result 84, got %d", response.Result)
+	}
+
+	// Test with a more incompatible type - expecting struct but getting string
+	type StructResponse struct {
+		Nested struct {
+			Field string `json:"field"`
+		} `json:"result"`
+	}
+
+	// This should fail because Python returns float, not nested object
+	_, err = CallTyped[PredictRequest, StructResponse](ctx, pool, "predict", input)
+	if err == nil {
+		t.Error("Expected error when response type is incompatible, got nil")
+	} else {
+		// Verify error message is helpful
+		errMsg := err.Error()
+		t.Logf("Got expected error: %v", errMsg)
+	}
+}

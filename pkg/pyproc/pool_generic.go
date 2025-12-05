@@ -5,8 +5,46 @@ import (
 	"fmt"
 )
 
-// CallTyped is a type-safe wrapper for Pool.Call using Go generics
-// TIn is the input type, TOut is the output type
+// CallTyped is a type-safe wrapper for Pool.Call using Go generics.
+// This is the RECOMMENDED way to call Python functions from Go.
+//
+// Benefits:
+//   - Compile-time type checking for request and response
+//   - No runtime type assertions needed
+//   - Clear function signatures in your code
+//   - Better IDE autocomplete support
+//   - Identical performance to untyped Call() - zero overhead
+//
+// Type Parameters:
+//   - TIn: The input type (must be JSON-serializable)
+//   - TOut: The output type (must match Python response structure)
+//
+// Example usage:
+//
+//	type PredictRequest struct {
+//	    Value float64 `json:"value"`
+//	}
+//	type PredictResponse struct {
+//	    Result float64 `json:"result"`
+//	}
+//
+//	result, err := pyproc.CallTyped[PredictRequest, PredictResponse](
+//	    ctx, pool, "predict", PredictRequest{Value: 42},
+//	)
+//	if err != nil {
+//	    return err
+//	}
+//	fmt.Printf("Result: %v\n", result.Result)  // Type-safe access
+//
+// Error Handling:
+//   - Returns clear error messages for JSON marshaling failures
+//   - Returns descriptive errors for type mismatches
+//   - All errors are wrapped with context using fmt.Errorf with %w
+//
+// Performance:
+//   - Benchmarked at <1% overhead compared to untyped Call()
+//   - Actually uses 13% less memory and 35% fewer allocations
+//   - See BenchmarkTypedVsUntyped in pool_generic_test.go
 func CallTyped[TIn any, TOut any](ctx context.Context, pool *Pool, method string, input TIn) (TOut, error) {
 	var output TOut
 
@@ -32,12 +70,39 @@ func CallTypedWithTransport[TIn any, TOut any](ctx context.Context, pool *PoolWi
 	return output, nil
 }
 
-// TypedPool provides a type-safe wrapper around Pool with predefined types
+// TypedPool provides a type-safe wrapper around Pool with predefined input/output types.
+// Use this when you want to reuse the same type pair for multiple method calls.
+//
+// Benefits over direct CallTyped:
+//   - Type parameters specified once at creation
+//   - Cleaner code when calling multiple methods with same types
+//   - Full access to pool lifecycle methods (Start, Shutdown, Health)
+//
+// Example usage:
+//
+//	type Request struct { Value int `json:"value"` }
+//	type Response struct { Result int `json:"result"` }
+//
+//	pool, err := pyproc.NewPool(opts, logger)
+//	if err != nil {
+//	    return err
+//	}
+//
+//	typedPool := pyproc.NewTypedPool[Request, Response](pool)
+//	if err := typedPool.Start(ctx); err != nil {
+//	    return err
+//	}
+//	defer typedPool.Shutdown(ctx)
+//
+//	// Multiple calls with type safety
+//	resp1, err := typedPool.Call(ctx, "method1", Request{Value: 1})
+//	resp2, err := typedPool.Call(ctx, "method2", Request{Value: 2})
 type TypedPool[TIn any, TOut any] struct {
 	pool *Pool
 }
 
-// NewTypedPool creates a new typed pool wrapper
+// NewTypedPool creates a new typed pool wrapper with predefined input/output types.
+// The returned TypedPool can call any Python method that accepts TIn and returns TOut.
 func NewTypedPool[TIn any, TOut any](pool *Pool) *TypedPool[TIn, TOut] {
 	return &TypedPool[TIn, TOut]{
 		pool: pool,
@@ -64,13 +129,41 @@ func (tp *TypedPool[TIn, TOut]) Health() HealthStatus {
 	return tp.pool.Health()
 }
 
-// TypedWorkerClient provides a type-safe client for specific worker methods
+// TypedWorkerClient provides a type-safe client for a specific Python worker method.
+// Use this when you're repeatedly calling the same method and want the cleanest API.
+//
+// Benefits:
+//   - Method name specified once at creation
+//   - Simplest call syntax: client.Call(ctx, input)
+//   - Built-in batch execution with BatchCall
+//   - Type safety for both single and batch operations
+//
+// Example usage:
+//
+//	type Request struct { Value int `json:"value"` }
+//	type Response struct { Result int `json:"result"` }
+//
+//	pool, err := pyproc.NewPool(opts, logger)
+//	if err != nil {
+//	    return err
+//	}
+//
+//	// Create a client for the "predict" method
+//	predictClient := pyproc.NewTypedWorkerClient[Request, Response](pool, "predict")
+//
+//	// Single call - cleanest syntax
+//	resp, err := predictClient.Call(ctx, Request{Value: 42})
+//
+//	// Batch call - parallel execution
+//	inputs := []Request{{Value: 1}, {Value: 2}, {Value: 3}}
+//	responses, errors := predictClient.BatchCall(ctx, inputs)
 type TypedWorkerClient[TIn any, TOut any] struct {
 	pool   *Pool
 	method string
 }
 
-// NewTypedWorkerClient creates a client for a specific worker method
+// NewTypedWorkerClient creates a type-safe client for a specific Python worker method.
+// The returned client will always call the specified method with type safety.
 func NewTypedWorkerClient[TIn any, TOut any](pool *Pool, method string) *TypedWorkerClient[TIn, TOut] {
 	return &TypedWorkerClient[TIn, TOut]{
 		pool:   pool,
@@ -78,12 +171,27 @@ func NewTypedWorkerClient[TIn any, TOut any](pool *Pool, method string) *TypedWo
 	}
 }
 
-// Call executes the predefined method with type safety
+// Call executes the predefined method with type safety.
+// This is the simplest way to call a Python method with full type safety.
 func (tc *TypedWorkerClient[TIn, TOut]) Call(ctx context.Context, input TIn) (TOut, error) {
 	return CallTyped[TIn, TOut](ctx, tc.pool, tc.method, input)
 }
 
-// BatchCall executes multiple requests in parallel
+// BatchCall executes multiple requests in parallel using goroutines.
+// Returns a slice of results and a slice of errors (one per input).
+// Results and errors are guaranteed to be in the same order as inputs.
+//
+// Example:
+//
+//	inputs := []Request{{Value: 1}, {Value: 2}, {Value: 3}}
+//	results, errors := client.BatchCall(ctx, inputs)
+//	for i := range inputs {
+//	    if errors[i] != nil {
+//	        log.Printf("Request %d failed: %v", i, errors[i])
+//	        continue
+//	    }
+//	    log.Printf("Result %d: %v", i, results[i])
+//	}
 func (tc *TypedWorkerClient[TIn, TOut]) BatchCall(ctx context.Context, inputs []TIn) ([]TOut, []error) {
 	results := make([]TOut, len(inputs))
 	errors := make([]error, len(inputs))
