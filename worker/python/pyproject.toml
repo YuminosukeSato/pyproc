@@ -89,6 +89,8 @@ ignore = [
   "F841",    # local variable assigned but never used
   "UP035",   # deprecated typing
   "PLC0415", # import should be at top-level
+  "T201",    # print found (CLI needs print)
+  "S603",    # subprocess call (tests use subprocess safely)
 ]
 unfixable = [
   "F401", # unused import
