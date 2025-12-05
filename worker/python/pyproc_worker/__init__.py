@@ -14,7 +14,7 @@ import struct
 import sys
 import traceback
 from pathlib import Path
-from typing import Any, Callable, TypeVar
+from typing import Callable, TypeVar, get_args, get_origin, get_type_hints
 
 from .cancellation import CancellationError, CancellationManager
 from .codec import Codec, get_codec
@@ -29,12 +29,115 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Registry for exposed functions
-_exposed_functions: dict[str, Callable[..., Any]] = {}
-_ExposedFunc = TypeVar("_ExposedFunc", bound=Callable[..., Any])
+_exposed_functions: dict[str, Callable[..., object]] = {}
+_ExposedFunc = TypeVar("_ExposedFunc", bound=Callable[..., object])
+
+# Schema registry for exposed functions
+_function_schemas: dict[str, dict[str, object]] = {}
+
+
+def _handle_basic_type(py_type: type) -> dict[str, str] | None:
+    """Handle basic Python types (int, float, str, bool, None).
+
+    Args:
+        py_type: Python type to check
+
+    Returns:
+        JSON schema dict for basic types, or None if not a basic type
+
+    """
+    if py_type is type(None):
+        return {"type": "null"}
+    if py_type is int:
+        return {"type": "integer"}
+    if py_type is float:
+        return {"type": "number"}
+    if py_type is str:
+        return {"type": "string"}
+    if py_type is bool:
+        return {"type": "boolean"}
+    return None
+
+
+def _handle_generic_type(origin: type | None, args: tuple[type, ...]) -> dict[str, object] | None:
+    """Handle generic types (list, dict, tuple, union).
+
+    Args:
+        origin: Origin type from get_origin()
+        args: Type arguments from get_args()
+
+    Returns:
+        JSON schema dict for generic types, or None if not handled
+
+    """
+    if origin is list:
+        if args:
+            return {"type": "array", "items": _python_type_to_json_schema(args[0])}
+        return {"type": "array"}
+
+    if origin is dict:
+        if len(args) >= 2:  # noqa: PLR2004
+            return {
+                "type": "object",
+                "additionalProperties": _python_type_to_json_schema(args[1]),
+            }
+        return {"type": "object"}
+
+    if origin is tuple:
+        if args:
+            return {
+                "type": "array",
+                "items": [_python_type_to_json_schema(arg) for arg in args],
+            }
+        return {"type": "array"}
+
+    # Handle Union types (including Optional)
+    if origin is type | type:  # Python 3.10+ union syntax
+        types = [_python_type_to_json_schema(arg) for arg in args]
+        return {"oneOf": types}
+
+    return None
+
+
+def _python_type_to_json_schema(py_type: type | object) -> dict[str, object]:
+    """Convert Python type hint to JSON schema-like structure.
+
+    Args:
+        py_type: Python type hint to convert
+
+    Returns:
+        Dictionary representing the type in JSON schema format
+
+    """
+    # Handle basic types first
+    if isinstance(py_type, type):
+        basic_schema = _handle_basic_type(py_type)
+        if basic_schema is not None:
+            return basic_schema
+
+    # Handle generic types
+    origin = get_origin(py_type)
+    args = get_args(py_type)
+    generic_schema = _handle_generic_type(origin, args)
+    if generic_schema is not None:
+        return generic_schema
+
+    # Fallback to "any" for unknown types
+    return {"type": "any"}
+
+
+def get_exposed_schemas() -> dict[str, object]:
+    """Get all exposed function schemas.
+
+    Returns:
+        Dictionary containing schema version and function schemas
+
+    """
+    return {"schema_version": "1.0", "functions": _function_schemas}
 
 
 def expose(func: _ExposedFunc) -> _ExposedFunc:
-    """Expose a Python function to Go.
+    """Expose a Python function to Go with schema capture.
 
     Usage:
         @expose
@@ -43,6 +146,37 @@ def expose(func: _ExposedFunc) -> _ExposedFunc:
     """
     func_name = getattr(func, "__name__", repr(func))
     _exposed_functions[func_name] = func
+
+    # Capture type hints
+    try:
+        hints = get_type_hints(func)
+        sig = inspect.signature(func)
+
+        parameters = []
+        for param_name, param in sig.parameters.items():
+            # Skip internal parameters
+            if param_name == "cancel_event":
+                continue
+
+            param_type = hints.get(param_name, object)
+            parameters.append(
+                {
+                    "name": param_name,
+                    "type": _python_type_to_json_schema(param_type),
+                    "required": param.default == inspect.Parameter.empty,
+                },
+            )
+
+        _function_schemas[func_name] = {
+            "name": func_name,
+            "parameters": parameters,
+            "return_type": _python_type_to_json_schema(hints.get("return", object)),
+            "docstring": inspect.getdoc(func) or "",
+        }
+    except Exception as e:
+        logger.warning("Failed to capture schema for %s: %s", func_name, e)
+        _function_schemas[func_name] = {"name": func_name, "schema_error": str(e)}
+
     logger.info("Exposed function: %s", func_name)
     return func
 
@@ -210,7 +344,7 @@ class Worker:
                     pass
                 break
 
-    def _process_request(self, request: dict[str, Any]) -> dict[str, Any]:
+    def _process_request(self, request: dict[str, object]) -> dict[str, object]:
         """Process a single request and return a response."""
         req_id = request.get("id", 0)
         method = request.get("method", "")
@@ -261,7 +395,7 @@ class Worker:
 
                 return {"id": req_id, "ok": False, "error": str(e)}
 
-    def _handle_cancellation(self, cancellation_msg: dict[str, Any]) -> None:
+    def _handle_cancellation(self, cancellation_msg: dict[str, object]) -> None:
         """Handle a cancellation message from Go.
 
         Args:
