@@ -144,6 +144,51 @@ if __name__ == "__main__":
 	}
 }
 
+func TestWorker_StopDuringStarting(t *testing.T) {
+	requireUnixSocket(t)
+	tmpDir := t.TempDir()
+	workerScript := filepath.Join(tmpDir, "test_worker.py")
+	socketPath := filepath.Join(tmpDir, "test.sock")
+
+	// Intentionally invalid Python script to slow down startup
+	pythonScript := `
+import time
+time.sleep(10)  # Sleep long enough for Stop() to be called during Starting state
+`
+	if err := os.WriteFile(workerScript, []byte(pythonScript), 0644); err != nil {
+		t.Fatalf("Failed to write worker script: %v", err)
+	}
+
+	cfg := WorkerConfig{
+		ID:           "test-worker-starting",
+		SocketPath:   socketPath,
+		PythonExec:   "python3",
+		WorkerScript: workerScript,
+		StartTimeout: 15 * time.Second,
+	}
+
+	ctx := context.Background()
+	worker := NewWorker(cfg, nil)
+
+	// Start worker asynchronously (will be in Starting state)
+	go func() {
+		_ = worker.Start(ctx) // This will fail/timeout, but that's ok
+	}()
+
+	// Give it a moment to enter Starting state
+	time.Sleep(100 * time.Millisecond)
+
+	// Stop should work even during Starting state
+	if err := worker.Stop(); err != nil {
+		t.Errorf("Failed to stop worker during starting: %v", err)
+	}
+
+	// Verify worker is stopped
+	if worker.IsRunning() {
+		t.Error("Worker should not be running after stop")
+	}
+}
+
 func TestWorker_Restart(t *testing.T) {
 	requireUnixSocket(t)
 	tmpDir := t.TempDir()
