@@ -17,6 +17,32 @@ func TestPoolMetricsLatency(t *testing.T) {
 	}
 }
 
+func TestPoolMetricsLatencyBufferOverflow(t *testing.T) {
+	metrics := NewPoolMetrics()
+
+	// Fill the buffer beyond maxLatencies (default 10000)
+	// Record 10100 latencies to trigger buffer rotation
+	maxLatencies := metrics.maxLatencies
+	for i := 0; i < maxLatencies+100; i++ {
+		metrics.RecordLatency(time.Duration(i) * time.Millisecond)
+	}
+
+	// Verify buffer size is limited to maxLatencies
+	metrics.latencyMu.RLock()
+	bufferSize := len(metrics.latencies)
+	metrics.latencyMu.RUnlock()
+
+	if bufferSize != maxLatencies {
+		t.Errorf("expected buffer size %d, got %d", maxLatencies, bufferSize)
+	}
+
+	// Verify percentile still works with rotated buffer
+	p50 := metrics.GetLatencyPercentile(50)
+	if p50 <= 0 {
+		t.Fatalf("expected latency percentile > 0 after buffer rotation, got %v", p50)
+	}
+}
+
 func TestMetricsSnapshot(t *testing.T) {
 	metrics := NewPoolMetrics()
 	metrics.ConnectionsCreated.Store(2)

@@ -124,22 +124,32 @@ func (p *Pool) Start(ctx context.Context) error {
 		}
 		// Don't mark as healthy until first health check succeeds
 		// pw.healthy.Store(true) - removed, will be set by health check
+	}
 
-		// Pre-populate connection pool
-		for j := 0; j < p.opts.Config.MaxInFlight; j++ {
-			conn, err := p.connect(pw.worker.cfg.SocketPath)
-			if err != nil {
-				p.logger.Warn("failed to pre-populate connection", "error", err)
-				break
-			}
-			select {
-			case pw.connPool <- conn:
-			default:
-				if err := conn.Close(); err != nil {
-					p.logger.Error("failed to close connection", "error", err)
+	// Pre-populate connection pools asynchronously
+	// This prevents slow socket initialization from blocking pool startup
+	for _, pw := range p.workers {
+		pw := pw // Capture loop variable
+		go func() {
+			// Give worker extra time to fully initialize
+			time.Sleep(50 * time.Millisecond)
+
+			for j := 0; j < p.opts.Config.MaxInFlight; j++ {
+				conn, err := p.connect(pw.worker.cfg.SocketPath)
+				if err != nil {
+					p.logger.Debug("failed to pre-populate connection", "error", err)
+					break
+				}
+
+				select {
+				case pw.connPool <- conn:
+				default:
+					if err := conn.Close(); err != nil {
+						p.logger.Error("failed to close connection", "error", err)
+					}
 				}
 			}
-		}
+		}()
 	}
 
 	// Give workers time to stabilize before health check
