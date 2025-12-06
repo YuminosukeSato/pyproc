@@ -41,7 +41,7 @@ func TestLoggerTraceEnabled(t *testing.T) {
 	logger.InfoContext(ctx, "msg")
 }
 
-func TestLoggerAllLevels(t *testing.T) {
+func TestLoggerAllLevels(_ *testing.T) {
 	logger := NewLogger(LoggingConfig{Level: "debug", Format: "json", TraceEnabled: true})
 	ctx := WithTraceID(context.Background())
 
