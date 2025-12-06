@@ -15,7 +15,7 @@ import struct
 import sys
 import traceback
 from pathlib import Path
-from typing import Callable, TypeVar, get_args, get_origin, get_type_hints
+from typing import Callable, TypeVar, Union, get_args, get_origin, get_type_hints
 
 from .cancellation import CancellationError, CancellationManager
 from .codec import Codec, get_codec
@@ -33,11 +33,15 @@ logger = logging.getLogger(__name__)
 _exposed_functions: dict[str, Callable[..., object]] = {}
 _ExposedFunc = TypeVar("_ExposedFunc", bound=Callable[..., object])
 
+# Type aliases for JSON schema representation
+JsonSchemaDict = dict[str, object]
+FunctionSchemaDict = dict[str, object]
+
 # Schema registry for exposed functions
-_function_schemas: dict[str, dict[str, object]] = {}
+_function_schemas: dict[str, FunctionSchemaDict] = {}
 
 
-def _handle_basic_type(py_type: type) -> dict[str, str] | None:
+def _handle_basic_type(py_type: type) -> JsonSchemaDict | None:
     """Handle basic Python types (int, float, str, bool, None).
 
     Args:
@@ -60,7 +64,7 @@ def _handle_basic_type(py_type: type) -> dict[str, str] | None:
     return None
 
 
-def _handle_generic_type(origin: type | None, args: tuple[type, ...]) -> dict[str, object] | None:
+def _handle_generic_type(origin: type | None, args: tuple[type, ...]) -> JsonSchemaDict | None:
     """Handle generic types (list, dict, tuple, union).
 
     Args:
@@ -93,14 +97,15 @@ def _handle_generic_type(origin: type | None, args: tuple[type, ...]) -> dict[st
         return {"type": "array"}
 
     # Handle Union types (including Optional)
-    if origin is type | type:  # Python 3.10+ union syntax
+    # Check for Union (typing.Union) or UnionType (PEP 604: X | Y syntax)
+    if origin is Union:
         types = [_python_type_to_json_schema(arg) for arg in args]
         return {"oneOf": types}
 
     return None
 
 
-def _handle_class_type(py_type: type) -> dict[str, object] | None:
+def _handle_class_type(py_type: type) -> JsonSchemaDict | None:
     """Handle dataclass types.
 
     Args:
@@ -138,7 +143,7 @@ def _handle_class_type(py_type: type) -> dict[str, object] | None:
     if hasattr(py_type, "__dataclass_params__"):
         is_frozen = py_type.__dataclass_params__.frozen
 
-    schema: dict[str, object] = {
+    schema: JsonSchemaDict = {
         "type": "object",
         "properties": properties,
         "frozen": is_frozen,
@@ -150,7 +155,7 @@ def _handle_class_type(py_type: type) -> dict[str, object] | None:
     return schema
 
 
-def _python_type_to_json_schema(py_type: type | object) -> dict[str, object]:
+def _python_type_to_json_schema(py_type: type | object) -> JsonSchemaDict:
     """Convert Python type hint to JSON schema-like structure.
 
     Args:
@@ -182,7 +187,7 @@ def _python_type_to_json_schema(py_type: type | object) -> dict[str, object]:
     return {"type": "any"}
 
 
-def get_exposed_schemas() -> dict[str, object]:
+def get_exposed_schemas() -> dict[str, str | dict[str, FunctionSchemaDict]]:
     """Get all exposed function schemas.
 
     Returns:
@@ -404,7 +409,8 @@ class Worker:
     def _process_request(self, request: dict[str, object]) -> dict[str, object]:
         """Process a single request and return a response."""
         req_id = request.get("id", 0)
-        method = request.get("method", "")
+        method_obj = request.get("method", "")
+        method = str(method_obj) if method_obj else ""
         body = request.get("body", {})
 
         # Check if method is exposed
