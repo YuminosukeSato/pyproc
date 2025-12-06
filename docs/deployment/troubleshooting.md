@@ -536,7 +536,7 @@ log.Printf("Workers: %d, Active: %d, Total Requests: %d",
 If you're still stuck:
 
 1. **Search existing issues**: [GitHub Issues](https://github.com/YuminosukeSato/pyproc/issues)
-2. **Ask in Discussions**: [GitHub Discussions](https://github.com/YuminosukeSato/pyproc/discussions)
+2. **Ask in Discussions**: [GitHub Discussions](https://github.com/YuminosukeSato/pyproc/issues)
 3. **File a bug report**: [New Issue](https://github.com/YuminosukeSato/pyproc/issues/new)
 
 ### Bug Report Template

@@ -110,6 +110,6 @@ Before you begin, ensure you have:
 
 ## Need Help?
 
-- **Questions**: [GitHub Discussions](https://github.com/YuminosukeSato/pyproc/discussions)
+- **Questions**: [GitHub Discussions](https://github.com/YuminosukeSato/pyproc/issues)
 - **Bug Reports**: [GitHub Issues](https://github.com/YuminosukeSato/pyproc/issues)
 - **Community**: [Contributing Guide](../community/contributing.md)

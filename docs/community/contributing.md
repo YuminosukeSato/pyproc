@@ -31,7 +31,7 @@ This project and everyone participating in it is governed by our commitment to p
 
 pyproc enables Go applications to call Python functions without CGO or microservices. Before contributing, please:
 
-1. Read the [README](README.md) to understand what pyproc does
+1. Read the [README](https://github.com/YuminosukeSato/pyproc#readme) to understand what pyproc does
 2. Check [existing issues](https://github.com/YuminosukeSato/pyproc/issues) to avoid duplicates
 3. Review [open PRs](https://github.com/YuminosukeSato/pyproc/pulls) to see what's in progress
 
@@ -481,7 +481,7 @@ Releases are managed by maintainers. Here's how it works:
 
 **Stuck? Here's how to get help:**
 
-- **Questions about contributing**: Open a [Discussion](https://github.com/YuminosukeSato/pyproc/discussions)
+- **Questions about contributing**: Open a [Discussion](https://github.com/YuminosukeSato/pyproc/issues)
 - **Bug or feature**: Open an [Issue](https://github.com/YuminosukeSato/pyproc/issues)
 - **Quick questions**: Comment on relevant issues/PRs
 

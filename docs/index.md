@@ -253,7 +253,7 @@ See [Performance Tuning Guide](guides/performance-tuning.md) for optimization te
 ## Community & Support
 
 - **GitHub Issues**: [Bug reports and feature requests](https://github.com/YuminosukeSato/pyproc/issues)
-- **Discussions**: [Ask questions and share ideas](https://github.com/YuminosukeSato/pyproc/discussions)
+- **Discussions**: [Ask questions and share ideas](https://github.com/YuminosukeSato/pyproc/issues)
 - **Contributing**: [Contribution guidelines](community/contributing.md)
 
 ---

@@ -132,5 +132,5 @@ pyproc doesn't provide sandboxing. Use system-level tools like gVisor or Firecra
 
 ## Still Have Questions?
 
-- **Ask in Discussions**: [GitHub Discussions](https://github.com/YuminosukeSato/pyproc/discussions)
+- **Ask a Question**: [GitHub Issues](https://github.com/YuminosukeSato/pyproc/issues)
 - **Report Issues**: [GitHub Issues](https://github.com/YuminosukeSato/pyproc/issues)
