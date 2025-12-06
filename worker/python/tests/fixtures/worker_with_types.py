@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Dict, List, Tuple
 
 from pyproc_worker import expose
 
@@ -122,3 +123,46 @@ def func_with_nested_dataclass(req: NestedOuter) -> NestedOuter:
     """Function with nested dataclass."""
     new_inner = NestedInner(count=req.inner.count + 1, label=req.inner.label.upper())
     return NestedOuter(inner=new_inner, total=req.total + req.inner.count)
+
+
+# Edge case: None type
+@expose
+def func_with_none_return(value: int) -> None:
+    """Function that returns None."""
+
+
+# Edge case: Optional type (Union with None)
+@expose
+def func_with_optional(value: int | None) -> str | None:
+    """Function with optional parameters."""
+    if value is None:
+        return None
+    return str(value)
+
+
+# Edge case: untyped list and dict
+@expose
+def func_with_untyped_collections(data: list, config: dict) -> tuple:
+    """Function with untyped generic collections."""
+    return (len(data), len(config))
+
+
+# Edge case: tuple with types
+@expose
+def func_with_typed_tuple(coords: tuple[int, int, str]) -> tuple[float, float]:
+    """Function with typed tuple."""
+    return (float(coords[0]), float(coords[1]))
+
+
+# Edge case: function with cancel_event parameter (should be skipped in schema)
+@expose
+def func_with_cancel_event(value: int, cancel_event) -> int:
+    """Function that accepts cancel_event parameter."""
+    return value * 2
+
+
+# Edge case: typing.List/Dict/Tuple without type args (legacy typing module)
+@expose
+def func_with_typing_module_generics(items: List, config: Dict) -> Tuple:  # noqa: UP006
+    """Function using typing.List/Dict/Tuple without type parameters."""
+    return (len(items), len(config))

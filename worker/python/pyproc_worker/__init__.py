@@ -14,6 +14,7 @@ import socket
 import struct
 import sys
 import traceback
+import types
 from pathlib import Path
 from typing import Callable, TypeVar, Union, get_args, get_origin, get_type_hints
 
@@ -98,9 +99,9 @@ def _handle_generic_type(origin: type | None, args: tuple[type, ...]) -> JsonSch
 
     # Handle Union types (including Optional)
     # Check for Union (typing.Union) or UnionType (PEP 604: X | Y syntax)
-    if origin is Union:
-        types = [_python_type_to_json_schema(arg) for arg in args]
-        return {"oneOf": types}
+    if origin is Union or isinstance(origin, type(types.UnionType)):
+        union_types = [_python_type_to_json_schema(arg) for arg in args]
+        return {"oneOf": union_types}
 
     return None
 
@@ -170,6 +171,14 @@ def _python_type_to_json_schema(py_type: type | object) -> JsonSchemaDict:
         basic_schema = _handle_basic_type(py_type)
         if basic_schema is not None:
             return basic_schema
+
+        # Handle untyped built-in collections (list, dict, tuple without type args)
+        if py_type is list:
+            return {"type": "array"}
+        if py_type is dict:
+            return {"type": "object"}
+        if py_type is tuple:
+            return {"type": "array"}
 
         # Handle dataclass types (before generic types)
         class_schema = _handle_class_type(py_type)

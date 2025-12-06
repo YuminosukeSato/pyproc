@@ -313,3 +313,173 @@ def test_expose_captures_nested_dataclass():
     assert return_inner["type"] == "object"
     assert "properties" in return_inner
     assert return_inner.get("frozen") is True
+
+
+def test_expose_captures_none_type():
+    """Test that @expose captures None return type."""
+    import pyproc_worker
+
+    fixtures_dir = Path(__file__).parent / "fixtures"
+    worker_path = fixtures_dir / "worker_with_types.py"
+    load_worker_module(worker_path)
+
+    schemas = pyproc_worker.get_exposed_schemas()
+    functions = schemas["functions"]
+
+    assert "func_with_none_return" in functions
+    none_schema = functions["func_with_none_return"]
+    assert none_schema["return_type"]["type"] == "null"
+
+
+def test_expose_captures_optional_type():
+    """Test that @expose captures Optional (Union with None) types."""
+    import pyproc_worker
+
+    fixtures_dir = Path(__file__).parent / "fixtures"
+    worker_path = fixtures_dir / "worker_with_types.py"
+    load_worker_module(worker_path)
+
+    schemas = pyproc_worker.get_exposed_schemas()
+    functions = schemas["functions"]
+
+    assert "func_with_optional" in functions
+    optional_schema = functions["func_with_optional"]
+
+    # Parameter type: int | None
+    param = optional_schema["parameters"][0]
+    assert param["name"] == "value"
+    assert param["type"]["oneOf"] is not None
+    # Should have integer and null types
+    types = param["type"]["oneOf"]
+    assert len(types) == 2  # noqa: PLR2004
+    type_names = {t["type"] for t in types}
+    assert "integer" in type_names
+    assert "null" in type_names
+
+    # Return type: str | None
+    return_type = optional_schema["return_type"]
+    assert "oneOf" in return_type
+    return_types = return_type["oneOf"]
+    assert len(return_types) == 2  # noqa: PLR2004
+    return_type_names = {t["type"] for t in return_types}
+    assert "string" in return_type_names
+    assert "null" in return_type_names
+
+
+def test_expose_captures_untyped_collections():
+    """Test that @expose handles untyped list, dict, and tuple."""
+    import pyproc_worker
+
+    fixtures_dir = Path(__file__).parent / "fixtures"
+    worker_path = fixtures_dir / "worker_with_types.py"
+    load_worker_module(worker_path)
+
+    schemas = pyproc_worker.get_exposed_schemas()
+    functions = schemas["functions"]
+
+    assert "func_with_untyped_collections" in functions
+    untyped_schema = functions["func_with_untyped_collections"]
+
+    # Parameter: untyped list
+    param_list = untyped_schema["parameters"][0]
+    assert param_list["name"] == "data"
+    assert param_list["type"]["type"] == "array"
+    # Untyped list should not have items specified
+    assert "items" not in param_list["type"]
+
+    # Parameter: untyped dict
+    param_dict = untyped_schema["parameters"][1]
+    assert param_dict["name"] == "config"
+    assert param_dict["type"]["type"] == "object"
+    # Untyped dict should not have additionalProperties specified
+    assert "additionalProperties" not in param_dict["type"]
+
+    # Return type: untyped tuple
+    return_type = untyped_schema["return_type"]
+    assert return_type["type"] == "array"
+    # Untyped tuple should not have items specified
+    assert "items" not in return_type
+
+
+def test_expose_captures_typed_tuple():
+    """Test that @expose captures typed tuple."""
+    import pyproc_worker
+
+    fixtures_dir = Path(__file__).parent / "fixtures"
+    worker_path = fixtures_dir / "worker_with_types.py"
+    load_worker_module(worker_path)
+
+    schemas = pyproc_worker.get_exposed_schemas()
+    functions = schemas["functions"]
+
+    assert "func_with_typed_tuple" in functions
+    tuple_schema = functions["func_with_typed_tuple"]
+
+    # Check tuple[int, int, str] parameter
+    param = tuple_schema["parameters"][0]
+    assert param["name"] == "coords"
+    assert param["type"]["type"] == "array"
+    assert "items" in param["type"]
+    items = param["type"]["items"]
+    assert len(items) == 3  # noqa: PLR2004
+    assert items[0]["type"] == "integer"
+    assert items[1]["type"] == "integer"
+    assert items[2]["type"] == "string"
+
+    # Return type: tuple[float, float]
+    return_type = tuple_schema["return_type"]
+    assert return_type["type"] == "array"
+    assert "items" in return_type
+    return_items = return_type["items"]
+    assert len(return_items) == 2  # noqa: PLR2004
+    assert return_items[0]["type"] == "number"
+    assert return_items[1]["type"] == "number"
+
+
+def test_expose_skips_cancel_event_parameter():
+    """Test that @expose skips cancel_event internal parameter."""
+    import pyproc_worker
+
+    fixtures_dir = Path(__file__).parent / "fixtures"
+    worker_path = fixtures_dir / "worker_with_types.py"
+    load_worker_module(worker_path)
+
+    schemas = pyproc_worker.get_exposed_schemas()
+    functions = schemas["functions"]
+
+    assert "func_with_cancel_event" in functions
+    cancel_schema = functions["func_with_cancel_event"]
+
+    # Should have only 1 parameter (value), not 2 (value and cancel_event)
+    assert len(cancel_schema["parameters"]) == 1
+    assert cancel_schema["parameters"][0]["name"] == "value"
+    assert cancel_schema["parameters"][0]["type"]["type"] == "integer"
+
+
+def test_expose_handles_typing_module_generics():
+    """Test that @expose handles typing.List/Dict/Tuple without type args."""
+    import pyproc_worker
+
+    fixtures_dir = Path(__file__).parent / "fixtures"
+    worker_path = fixtures_dir / "worker_with_types.py"
+    load_worker_module(worker_path)
+
+    schemas = pyproc_worker.get_exposed_schemas()
+    functions = schemas["functions"]
+
+    assert "func_with_typing_module_generics" in functions
+    typing_schema = functions["func_with_typing_module_generics"]
+
+    # typing.List without args
+    param_list = typing_schema["parameters"][0]
+    assert param_list["name"] == "items"
+    assert param_list["type"]["type"] == "array"
+
+    # typing.Dict without args
+    param_dict = typing_schema["parameters"][1]
+    assert param_dict["name"] == "config"
+    assert param_dict["type"]["type"] == "object"
+
+    # typing.Tuple without args
+    return_type = typing_schema["return_type"]
+    assert return_type["type"] == "array"
