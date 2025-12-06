@@ -50,7 +50,7 @@ plugins:
       minify_css: true
 
 markdown_extensions:
-  # コードハイライト
+  # Code highlighting
   - pymdownx.highlight:
       anchor_linenums: true
       line_spans: __span
@@ -63,23 +63,23 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets
 
-  # タブとアコーディオン
+  # Tabs and accordion
   - pymdownx.tabbed:
       alternate_style: true
   - admonition
   - pymdownx.details
 
-  # リストとテーブル
+  # Lists and tables
   - def_list
   - pymdownx.tasklist:
       custom_checkbox: true
   - tables
 
-  # リンクと画像
+  # Links and images
   - attr_list
   - md_in_html
 
-  # メタデータ
+  # Metadata
   - meta
   - toc:
       permalink: true

@@ -367,7 +367,7 @@ Stay informed about security updates:
 If you discover a security vulnerability:
 
 1. Do NOT open a public issue
-2. Email security details to: security@example.com
+2. Report via [GitHub Security Advisories](https://github.com/YuminosukeSato/pyproc/security/advisories/new)
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce

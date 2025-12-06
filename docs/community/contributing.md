@@ -450,7 +450,7 @@ All PRs must pass these automated checks:
 | Go Format | `gofmt` | Code formatting |
 | Python Lint | `ruff check` | Static analysis |
 | Python Format | `ruff format` | Code formatting |
-| Python Type | `ty check` | Type checking |
+| Python Type | `mypy` | Type checking |
 | Python Test | `pytest` | Unit tests |
 | Link Check | `lychee` | Validates documentation links |
 | Security | CodeQL | Security vulnerability scanning |
