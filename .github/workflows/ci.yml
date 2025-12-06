@@ -11,8 +11,11 @@ permissions:
 
 jobs:
   go:
-    name: Go build, lint, test
+    name: Go ${{ matrix.task }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        task: [test, lint, build]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,7 +26,66 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # Test task
+      - name: Setup Python for tests
+        if: matrix.task == 'test'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Python worker package
+        if: matrix.task == 'test'
+        run: |
+          cd worker/python
+          pip install -e .
+          cd ../..
+
+      - name: Test with coverage
+        if: matrix.task == 'test'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pkgs=$(go list ./... | grep -v '/bench')
+          if [ -n "$pkgs" ]; then
+            go test -timeout 5m -v -race -coverprofile=coverage.out -covermode=atomic $pkgs
+          fi
+
+      - name: Check Go coverage is 100%
+        if: matrix.task == 'test'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f coverage.out ]; then
+            coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+            echo "Total coverage: ${coverage}%"
+            if (( $(echo "$coverage < 100" | bc -l) )); then
+              echo "❌ Coverage ${coverage}% is below 100%"
+              exit 1
+            else
+              echo "✅ Coverage is 100%"
+            fi
+          fi
+
+      - name: Upload coverage to Codecov
+        if: matrix.task == 'test' && github.event_name == 'push'
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.out
+          fail_ci_if_error: false
+
+      - name: Update coverage report
+        if: matrix.task == 'test' && github.event_name == 'push'
+        uses: ncruces/go-coverage-report@v0
+        with:
+          report: true
+          chart: true
+          amend: true
+        continue-on-error: true
+
+      # Lint task
       - name: Go fmt check
+        if: matrix.task == 'lint'
         run: |
           fmt_out=$(gofmt -l . || true)
           if [ -n "$fmt_out" ]; then
@@ -32,7 +94,16 @@ jobs:
             exit 1
           fi
 
+      - name: golangci-lint
+        if: matrix.task == 'lint'
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+      # Build task
       - name: Go vet
+        if: matrix.task == 'build'
         shell: bash
         run: |
           set -euo pipefail
@@ -42,6 +113,7 @@ jobs:
           fi
 
       - name: Build all packages
+        if: matrix.task == 'build'
         shell: bash
         run: |
           set -euo pipefail
@@ -51,50 +123,8 @@ jobs:
           fi
 
       - name: Build examples
+        if: matrix.task == 'build'
         run: go build ./examples/basic
-
-      - name: Setup Python for tests
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install Python worker package
-        run: |
-          cd worker/python
-          pip install -e .
-          cd ../..
-
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          args: --timeout=5m
-
-      - name: Test with coverage
-        shell: bash
-        run: |
-          set -euo pipefail
-          pkgs=$(go list ./... | grep -v '/bench')
-          if [ -n "$pkgs" ]; then
-            go test -timeout 5m -v -race -coverprofile=coverage.out -covermode=atomic $pkgs
-          fi
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./coverage.out
-          fail_ci_if_error: false
-        if: github.event_name == 'push'
-
-      - name: Update coverage report
-        uses: ncruces/go-coverage-report@v0
-        with:
-          report: true
-          chart: true
-          amend: true
-        if: github.event_name == 'push'
-        continue-on-error: true
 
   python:
     name: Python lint and tests (uv)
@@ -121,8 +151,19 @@ jobs:
       - name: ty check
         run: uv run ty check .
 
-      - name: Pytest
-        run: uv run pytest -q
+      - name: Pytest with coverage
+        run: uv run pytest -q --cov=pyproc_worker --cov-report=term-missing --cov-report=xml
+
+      - name: Check Python coverage is 100%
+        run: |
+          coverage=$(uv run coverage report --precision=2 | grep TOTAL | awk '{print $4}' | sed 's/%//')
+          echo "Total coverage: ${coverage}%"
+          if (( $(echo "$coverage < 100" | bc -l) )); then
+            echo "❌ Coverage ${coverage}% is below 100%"
+            exit 1
+          else
+            echo "✅ Coverage is 100%"
+          fi
 
   benchmark:
     name: Performance benchmarks and gates
