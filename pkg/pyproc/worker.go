@@ -87,8 +87,34 @@ func (w *Worker) Start(ctx context.Context) error {
 			"error", err)
 	}
 
+	// Auto-detect Python if not specified
+	pythonExec := w.cfg.PythonExec
+	if pythonExec == "" {
+		env, err := DetectPythonEnv(ctx)
+		if err != nil {
+			w.state.Store(int32(WorkerStateStopped))
+			return fmt.Errorf("failed to detect Python environment: %w", err)
+		}
+		pythonExec = env.Executable
+
+		// Merge detected virtual environment variables
+		if env.VirtualEnvPath != "" {
+			if w.cfg.Env == nil {
+				w.cfg.Env = make(map[string]string)
+			}
+			if _, exists := w.cfg.Env["VIRTUAL_ENV"]; !exists {
+				w.cfg.Env["VIRTUAL_ENV"] = env.VirtualEnvPath
+			}
+		}
+
+		w.logger.InfoContext(ctx, "Auto-detected Python environment",
+			"executable", pythonExec,
+			"version", env.Version,
+			"venv_type", env.VirtualEnvType)
+	}
+
 	// Create the command
-	cmd := exec.CommandContext(ctx, w.cfg.PythonExec, w.cfg.WorkerScript)
+	cmd := exec.CommandContext(ctx, pythonExec, w.cfg.WorkerScript)
 
 	// Set environment variables
 	cmd.Env = os.Environ()

@@ -298,3 +298,53 @@ func TestWorker_InvalidScript(t *testing.T) {
 		t.Error("Worker should not be running with invalid script")
 	}
 }
+
+func TestWorker_AutoDetectPython(t *testing.T) {
+	requireUnixSocket(t)
+
+	// Create a simple Python worker script
+	pythonScript := `
+from pyproc_worker import expose, run_worker
+
+@expose
+def echo(req):
+    return {"echo": req.get("message", "")}
+
+if __name__ == "__main__":
+    run_worker()
+`
+
+	scriptPath := filepath.Join(t.TempDir(), "auto_detect_worker.py")
+	if err := os.WriteFile(scriptPath, []byte(pythonScript), 0644); err != nil {
+		t.Fatalf("Failed to write worker script: %v", err)
+	}
+
+	// Create worker with empty PythonExec - should auto-detect
+	cfg := WorkerConfig{
+		ID:           "auto-detect-test",
+		SocketPath:   "/tmp/pyproc-autodetect-test.sock",
+		PythonExec:   "", // Empty - should auto-detect
+		WorkerScript: scriptPath,
+		StartTimeout: 5 * time.Second,
+		Env: map[string]string{
+			"PYTHONPATH": filepath.Join("..", "..", "worker", "python"),
+		},
+	}
+
+	worker := NewWorker(cfg, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := worker.Start(ctx)
+	if err != nil {
+		t.Fatalf("Failed to start worker with auto-detect: %v", err)
+	}
+	defer worker.Stop()
+
+	// Verify worker is actually running
+	if !worker.IsRunning() {
+		t.Fatal("Worker should be running after auto-detect")
+	}
+
+	t.Logf("✅ Worker successfully started with auto-detected Python")
+}
