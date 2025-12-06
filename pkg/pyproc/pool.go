@@ -129,7 +129,6 @@ func (p *Pool) Start(ctx context.Context) error {
 	// Pre-populate connection pools asynchronously
 	// This prevents slow socket initialization from blocking pool startup
 	for _, pw := range p.workers {
-		pw := pw // Capture loop variable
 		go func() {
 			// Give worker extra time to fully initialize
 			time.Sleep(50 * time.Millisecond)
