@@ -81,55 +81,62 @@ If all tests pass and the demo runs successfully, you're ready to contribute!
 
 ## How to Contribute
 
+### Issue First Workflow
+
+**Before submitting a PR, please open an issue first** (unless it's a trivial change like typo fixes).
+
+**Why?**
+
+- Allows discussion of the approach before implementation
+- Prevents duplicate work
+- Ensures alignment with project goals
+
+**Workflow:**
+
+1. **Search** existing issues to avoid duplicates
+2. **Open an issue** using the appropriate template:
+   - [Bug Report](https://github.com/YuminosukeSato/pyproc/issues/new?template=bug_report.yml): For reproducible bugs
+   - [Feature Request](https://github.com/YuminosukeSato/pyproc/issues/new?template=feature_request.yml): For new functionality
+   - [Question](https://github.com/YuminosukeSato/pyproc/issues/new?template=question.yml): For usage questions
+3. **Discuss** the approach with maintainers
+4. **Get approval** before starting implementation
+5. **Submit PR** that references the issue
+
+**Exceptions** (no issue needed):
+
+- Typo fixes in documentation
+- README improvements
+- Comment clarifications
+- Obvious bugs with clear fixes
+
 ### Reporting Bugs
 
-Found a bug? Please help us fix it by [opening an issue](https://github.com/YuminosukeSato/pyproc/issues/new).
+Found a bug? Please [open a bug report](https://github.com/YuminosukeSato/pyproc/issues/new?template=bug_report.yml).
 
-**A good bug report includes:**
+The bug report template will guide you through providing:
 
-1. **Clear title**: Summarize the issue in one line
-2. **Environment**: Go version, Python version, OS
-3. **Steps to reproduce**: Minimal code or commands to trigger the bug
-4. **Expected behavior**: What you expected to happen
-5. **Actual behavior**: What actually happened
-6. **Logs/errors**: Any relevant error messages or stack traces
+- Environment details (Go/Python/OS versions)
+- Steps to reproduce
+- Expected vs actual behavior
+- Relevant logs and errors
 
-**Example:**
-
-```markdown
-## Bug: Worker crashes on large payload
-
-**Environment:**
-- Go 1.24.0
-- Python 3.12.0
-- macOS 14.0
-
-**Steps to reproduce:**
-1. Create a worker with default settings
-2. Call with payload > 10MB
-3. Worker process exits unexpectedly
-
-**Expected:** Worker handles large payload or returns clear error
-**Actual:** Worker crashes without error message
-
-**Logs:**
-[paste relevant logs here]
-```
+For **security vulnerabilities**, please follow our [Security Policy](https://github.com/YuminosukeSato/pyproc/blob/main/docs/security.md) instead of opening a public issue.
 
 ### Suggesting Features
 
-Have an idea? We'd love to hear it! Please [open a feature request](https://github.com/YuminosukeSato/pyproc/issues/new).
+Have an idea? Please [open a feature request](https://github.com/YuminosukeSato/pyproc/issues/new?template=feature_request.yml).
 
 **Before suggesting:**
 
-- Check if it aligns with pyproc's scope (Go + Python IPC on same host)
-- Search existing issues to avoid duplicates
+- ✅ Check if it aligns with pyproc's scope (Go + Python IPC on same host)
+- ✅ Search existing issues to avoid duplicates
+- ✅ Consider if it fits pyproc's simplicity philosophy
 
-**A good feature request includes:**
+The feature request template will help you articulate:
 
-- **Use case**: What problem are you trying to solve?
-- **Proposed solution**: How do you envision it working?
-- **Alternatives considered**: What other approaches did you consider?
+- The problem you're solving (use case)
+- Proposed solution
+- Alternatives you considered
 
 ### Your First Code Contribution
 
@@ -201,6 +208,21 @@ When your PR is merged, it will be categorized in release notes based on labels:
 | `bug`, `fix` | Bug Fixes |
 | `documentation` | Documentation |
 | other | Other Changes |
+
+### Labels and Triage
+
+PRs and issues are automatically labeled based on:
+
+- **Type**: `type/bug`, `type/feature`, `type/question`
+- **Language**: `lang/go`, `lang/python`, `lang/docs`
+- **Area**: `area/pool`, `area/worker`, `area/ipc`, `area/bench`, `area/examples`
+- **Priority**: Applied by maintainers after triage
+
+**Special labels:**
+
+- `good-first-issue`: Great for newcomers
+- `help-wanted`: Contributions welcome
+- `breaking-change`: Will be in "Breaking Changes" section of release notes
 
 ## Style Guidelines
 

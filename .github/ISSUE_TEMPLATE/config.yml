@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: GitHub Discussions
+    url: https://github.com/YuminosukeSato/pyproc/discussions
+    about: General questions, ideas, and community discussions
+  - name: Security Vulnerabilities
+    url: https://github.com/YuminosukeSato/pyproc/blob/main/docs/security.md
+    about: Report security issues privately (DO NOT use public issues)

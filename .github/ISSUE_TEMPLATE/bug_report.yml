@@ -1,0 +1,113 @@
+name: Bug Report
+description: Report a bug in pyproc
+title: "[Bug]: "
+labels: ["type/bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the information below to help us diagnose and fix the issue.
+
+        **For security vulnerabilities**, please do NOT open a public issue. Instead, follow our [Security Policy](https://github.com/YuminosukeSato/pyproc/blob/main/docs/security.md).
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Please provide your environment details.
+      value: |
+        - Go version: (run `go version`)
+        - Python version: (run `python --version`)
+        - uv version: (run `uv --version`)
+        - OS and Architecture: (e.g., macOS 14.0 arm64, Ubuntu 22.04 x86_64)
+        - pyproc version: (e.g., v0.3.0 or main branch commit hash)
+      render: markdown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which component is affected?
+      options:
+        - Go Application (pool, connection management)
+        - Python Worker (worker process, @expose decorator)
+        - IPC Layer (socket communication, protocol)
+        - Build/Installation
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Minimal code or commands to trigger the bug.
+      placeholder: |
+        1. Create a pool with...
+        2. Call function...
+        3. See error...
+      render: markdown
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What you expected to happen.
+      placeholder: The function should return...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened.
+      placeholder: Instead, it returns/throws...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and Error Messages
+      description: Any relevant error messages, stack traces, or logs.
+      placeholder: Paste logs here...
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information that might be helpful (e.g., related issues, workarounds you tried).
+      placeholder: Additional details...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm the following before submitting.
+      options:
+        - label: I have searched existing issues to avoid duplicates
+          required: true
+        - label: I have provided all required environment information
+          required: true
+        - label: I have included steps to reproduce the issue
+          required: true

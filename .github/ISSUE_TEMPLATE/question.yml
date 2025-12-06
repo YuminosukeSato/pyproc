@@ -1,0 +1,83 @@
+name: Question
+description: Ask a question about using pyproc
+title: "[Question]: "
+labels: ["type/question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about using pyproc? We're here to help!
+
+        **Before asking:**
+        - Check the [README](https://github.com/YuminosukeSato/pyproc#readme) for basic usage
+        - Search [existing issues](https://github.com/YuminosukeSato/pyproc/issues) and [discussions](https://github.com/YuminosukeSato/pyproc/discussions)
+        - Review [examples/](https://github.com/YuminosukeSato/pyproc/tree/main/examples) for common patterns
+
+        **Note:** For general discussions or open-ended questions, consider using [GitHub Discussions](https://github.com/YuminosukeSato/pyproc/discussions) instead.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+      placeholder: |
+        How do I [specific task]?
+        What's the best way to [use case]?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What are you trying to accomplish? What have you tried so far?
+      placeholder: |
+        I'm building [application] that needs to [goal]...
+        I tried [approach], but...
+    validations:
+      required: false
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Relevant Code
+      description: If applicable, share relevant code snippets.
+      placeholder: |
+        ```go
+        // Your Go code
+        ```
+
+        ```python
+        # Your Python code
+        ```
+      render: markdown
+    validations:
+      required: false
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic Area
+      description: Which area is your question about?
+      options:
+        - Getting Started/Setup
+        - Pool Configuration
+        - Python Worker (@expose, functions)
+        - Error Handling
+        - Performance/Benchmarking
+        - Deployment/Production
+        - Integration (with frameworks, libraries)
+        - Other
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm the following.
+      options:
+        - label: I have searched existing issues and discussions
+          required: true
+        - label: I have checked the README and examples
+          required: true

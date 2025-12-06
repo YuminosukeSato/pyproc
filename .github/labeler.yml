@@ -1,0 +1,61 @@
+# Language-based labels
+'lang/go':
+  - changed-files:
+      - any-glob-to-any-file: ['**/*.go', 'go.mod', 'go.sum', '**/*_test.go']
+
+'lang/python':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'worker/python/**/*.py'
+          - 'worker/python/pyproject.toml'
+          - 'worker/python/uv.lock'
+
+'lang/docs':
+  - changed-files:
+      - any-glob-to-any-file: ['**/*.md', 'docs/**/*']
+
+# Area-based labels
+'area/ipc':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'internal/framing/**/*'
+          - 'internal/protocol/**/*'
+
+'area/pool':
+  - changed-files:
+      - any-glob-to-any-file: ['pkg/pyproc/pool*.go']
+
+'area/worker':
+  - changed-files:
+      - any-glob-to-any-file: ['worker/python/**/*']
+
+'area/examples':
+  - changed-files:
+      - any-glob-to-any-file: ['examples/**/*']
+
+'area/bench':
+  - changed-files:
+      - any-glob-to-any-file: ['bench/**/*']
+
+'area/ci':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/workflows/**/*'
+          - '.github/**/*.yml'
+          - '.github/**/*.yaml'
+
+# Type labels based on branch naming
+'bug':
+  - head-branch: ['^fix/', '^hotfix/', '^bugfix/']
+
+'enhancement':
+  - head-branch: ['^feat/', '^feature/', '^enh/']
+
+'documentation':
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**/*'
+          - 'README.md'
+          - 'CONTRIBUTING.md'
+          - 'CHANGELOG.md'

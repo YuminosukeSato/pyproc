@@ -1,0 +1,108 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for pyproc
+title: "[Feature]: "
+labels: ["type/feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please provide detailed information to help us understand and evaluate your proposal.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem are you trying to solve? Describe the use case.
+      placeholder: |
+        I'm working on [use case] and I need to [problem]...
+        Currently, pyproc doesn't support [missing capability]...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How do you envision this feature working?
+      placeholder: |
+        I propose adding [feature] that would allow users to [capability]...
+        The API could look like...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What other approaches or workarounds have you considered?
+      placeholder: |
+        I considered using [alternative 1], but...
+        Another option would be [alternative 2], however...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope-check
+    attributes:
+      label: Scope Check
+      description: pyproc focuses on Go+Python IPC on the same host. Please confirm alignment with project scope.
+      options:
+        - label: This feature is for same-host communication (not cross-host/distributed)
+          required: true
+        - label: I understand pyproc does not aim to replace distributed frameworks (Ray, gRPC services)
+          required: false
+        - label: I understand pyproc prioritizes simplicity over feature richness
+          required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected Area
+      description: Which area would this feature primarily affect?
+      options:
+        - Go API (pool, connection management)
+        - Python Worker API (@expose, worker lifecycle)
+        - IPC/Protocol (socket communication, serialization)
+        - Performance/Benchmarking
+        - Documentation/Examples
+        - Build/Deployment
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority (Your Opinion)
+      description: How important is this feature to you?
+      options:
+        - Critical (blocking my use case)
+        - High (significant impact on productivity)
+        - Medium (nice to have)
+        - Low (minor improvement)
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information, examples from other projects, or links that might be helpful.
+      placeholder: |
+        Similar functionality in [other project]: [link]
+        Related issues: #123
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      description: Please confirm the following before submitting.
+      options:
+        - label: I have searched existing issues and discussions to avoid duplicates
+          required: true
+        - label: This feature aligns with pyproc's scope (Go+Python same-host IPC)
+          required: true
+        - label: I have described a concrete use case or problem
+          required: true
