@@ -16,17 +16,14 @@ func ConnectToWorker(socketPath string, timeout time.Duration) (net.Conn, error)
 	defer cancel()
 
 	for {
-		select {
-		case <-ctx.Done():
+		conn, err := net.Dial("unix", socketPath)
+		if err == nil {
+			return conn, nil
+		}
+
+		// Sleep before retry, or return if timeout occurs during sleep
+		if err := sleepWithCtx(ctx, defaultSleepDuration); err != nil {
 			return nil, fmt.Errorf("failed to connect to worker at %s after %v", socketPath, timeout)
-		default:
-			conn, err := net.Dial("unix", socketPath)
-			if err == nil {
-				return conn, nil
-			}
-			if err := sleepWithCtx(ctx, defaultSleepDuration); err != nil {
-				return nil, fmt.Errorf("failed to connect to worker at %s after %v", socketPath, timeout)
-			}
 		}
 	}
 }
