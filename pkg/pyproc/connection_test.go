@@ -101,3 +101,56 @@ func TestSleepWithCtx_ContextAlreadyCanceled(t *testing.T) {
 		t.Error("expected context canceled error")
 	}
 }
+
+func TestConnectToWorker_TimeoutDuringSleep(t *testing.T) {
+	requireUnixSocket(t)
+	tmpDir := t.TempDir()
+	socketPath := filepath.Join(tmpDir, "nonexistent.sock")
+
+	// Use very short timeout to ensure timeout occurs during sleep
+	// The timeout must be shorter than defaultSleepDuration (100ms) but long enough
+	// for the first dial attempt to complete. Testing multiple times increases
+	// the likelihood of hitting the sleep-during-timeout code path.
+	for i := 0; i < 5; i++ {
+		start := time.Now()
+		_, err := ConnectToWorker(socketPath, 10*time.Millisecond)
+		elapsed := time.Since(start)
+
+		if err == nil {
+			t.Error("expected error for non-existent socket")
+		}
+
+		// Should timeout quickly
+		if elapsed > 150*time.Millisecond {
+			t.Errorf("expected to timeout quickly, waited %v", elapsed)
+		}
+	}
+}
+
+func TestConnectToWorker_TimeoutAfterSleep(t *testing.T) {
+	requireUnixSocket(t)
+	tmpDir := t.TempDir()
+	socketPath := filepath.Join(tmpDir, "nonexistent.sock")
+
+	// Use timeout longer than one sleep cycle (100ms) to ensure at least one
+	// sleep completes successfully. Try multiple times to increase likelihood
+	// of hitting the select case <-ctx.Done() path (line 20-21 in connection.go)
+	for i := 0; i < 10; i++ {
+		start := time.Now()
+		_, err := ConnectToWorker(socketPath, 120*time.Millisecond)
+		elapsed := time.Since(start)
+
+		if err == nil {
+			t.Error("expected error for non-existent socket")
+		}
+
+		// Should wait for at least one sleep cycle
+		if elapsed < 80*time.Millisecond {
+			t.Errorf("iteration %d: expected to wait at least 80ms, waited %v", i, elapsed)
+		}
+
+		if elapsed > 200*time.Millisecond {
+			t.Errorf("iteration %d: expected to timeout around 120ms, waited %v", i, elapsed)
+		}
+	}
+}
