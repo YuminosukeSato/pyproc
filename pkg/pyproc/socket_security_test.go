@@ -197,3 +197,14 @@ func TestSocketSecurityWithAllowedGIDs(t *testing.T) {
 		t.Error("allowed GID does not match current group")
 	}
 }
+
+func TestGetPeerCredentials_InvalidFD(t *testing.T) {
+	requireUnixSocket(t)
+
+	// Test with invalid file descriptor (should fail)
+	invalidFD := -1
+	_, err := getPeerCredentials(invalidFD)
+	if err == nil {
+		t.Error("expected error for invalid file descriptor")
+	}
+}
