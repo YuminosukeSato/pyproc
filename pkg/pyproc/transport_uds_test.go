@@ -184,13 +184,13 @@ func (m *mockConnWithCloseError) Close() error {
 	return net.ErrClosed // Simulate close error
 }
 
-func (m *mockConnWithCloseError) Read(b []byte) (n int, err error)   { return 0, nil }
+func (m *mockConnWithCloseError) Read(_ []byte) (n int, err error)   { return 0, nil }
 func (m *mockConnWithCloseError) Write(b []byte) (n int, err error)  { return len(b), nil }
 func (m *mockConnWithCloseError) LocalAddr() net.Addr                { return nil }
 func (m *mockConnWithCloseError) RemoteAddr() net.Addr               { return nil }
-func (m *mockConnWithCloseError) SetDeadline(t time.Time) error      { return nil }
-func (m *mockConnWithCloseError) SetReadDeadline(t time.Time) error  { return nil }
-func (m *mockConnWithCloseError) SetWriteDeadline(t time.Time) error { return nil }
+func (m *mockConnWithCloseError) SetDeadline(_ time.Time) error      { return nil }
+func (m *mockConnWithCloseError) SetReadDeadline(_ time.Time) error  { return nil }
+func (m *mockConnWithCloseError) SetWriteDeadline(_ time.Time) error { return nil }
 
 func TestUDSTransport_CloseWithError(t *testing.T) {
 	requireUnixSocket(t)
