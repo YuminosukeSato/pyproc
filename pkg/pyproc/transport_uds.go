@@ -177,9 +177,10 @@ func (t *UDSTransport) Close() error {
 	t.healthy = false
 
 	if t.conn != nil {
-		err := t.conn.Close()
+		if err := t.conn.Close(); err != nil {
+			t.logger.Debug("error closing connection", "error", err)
+		}
 		t.conn = nil
-		return err
 	}
 
 	return nil

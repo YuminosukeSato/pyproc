@@ -169,3 +169,57 @@ func TestUDSTransport_DoubleClose(t *testing.T) {
 		t.Errorf("second close should succeed (no-op): %v", err2)
 	}
 }
+
+// mockConnWithCloseError is a mock connection that returns error on Close()
+type mockConnWithCloseError struct {
+	net.Conn
+	closed bool
+}
+
+func (m *mockConnWithCloseError) Close() error {
+	if m.closed {
+		return net.ErrClosed
+	}
+	m.closed = true
+	return net.ErrClosed // Simulate close error
+}
+
+func (m *mockConnWithCloseError) Read(b []byte) (n int, err error)   { return 0, nil }
+func (m *mockConnWithCloseError) Write(b []byte) (n int, err error)  { return len(b), nil }
+func (m *mockConnWithCloseError) LocalAddr() net.Addr                { return nil }
+func (m *mockConnWithCloseError) RemoteAddr() net.Addr               { return nil }
+func (m *mockConnWithCloseError) SetDeadline(t time.Time) error      { return nil }
+func (m *mockConnWithCloseError) SetReadDeadline(t time.Time) error  { return nil }
+func (m *mockConnWithCloseError) SetWriteDeadline(t time.Time) error { return nil }
+
+func TestUDSTransport_CloseWithError(t *testing.T) {
+	requireUnixSocket(t)
+
+	cfg := TransportConfig{
+		Type:    "uds",
+		Address: "/tmp/test.sock",
+	}
+	logger := NewLogger(LoggingConfig{Level: "debug", Format: "text"})
+
+	// Create transport with empty config (will fail to connect, but that's ok)
+	transport := &UDSTransport{
+		config:  cfg,
+		logger:  logger,
+		codec:   &JSONCodec{},
+		healthy: true,
+	}
+
+	// Inject mock connection that returns error on Close()
+	transport.conn = &mockConnWithCloseError{}
+
+	// Close should succeed but log the error
+	err := transport.Close()
+	if err != nil {
+		t.Errorf("Close() should return nil even with conn.Close() error, got: %v", err)
+	}
+
+	// Verify connection is nil after close
+	if transport.conn != nil {
+		t.Error("expected conn to be nil after Close()")
+	}
+}
