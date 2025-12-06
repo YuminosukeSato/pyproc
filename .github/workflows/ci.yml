@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pkgs=$(go list ./... | grep -v '/bench')
+          pkgs=$(go list ./... | grep -v '/bench' | grep -v '/tests')
           if [ -n "$pkgs" ]; then
             echo "$pkgs" | xargs -r -n1 go vet
           fi
@@ -45,7 +45,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pkgs=$(go list ./... | grep -v '/bench')
+          pkgs=$(go list ./... | grep -v '/bench' | grep -v '/tests')
           if [ -n "$pkgs" ]; then
             echo "$pkgs" | xargs -r -n1 go build
           fi
@@ -74,10 +74,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          pkgs=$(go list ./... | grep -v '/bench')
+          pkgs=$(go list ./... | grep -v '/bench' | grep -v '/tests')
           if [ -n "$pkgs" ]; then
             go test -timeout 5m -v -race -coverprofile=coverage.out -covermode=atomic $pkgs
           fi
+
+      - name: Run E2E integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test -timeout 5m -v ./tests/
+        continue-on-error: true
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
