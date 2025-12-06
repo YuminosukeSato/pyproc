@@ -79,6 +79,21 @@ jobs:
             go test -timeout 5m -v -race -coverprofile=coverage.out -covermode=atomic $pkgs
           fi
 
+      - name: Check Go coverage is 100%
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f coverage.out ]; then
+            coverage=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+            echo "Total coverage: ${coverage}%"
+            if (( $(echo "$coverage < 100" | bc -l) )); then
+              echo "❌ Coverage ${coverage}% is below 100%"
+              exit 1
+            else
+              echo "✅ Coverage is 100%"
+            fi
+          fi
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -121,8 +136,19 @@ jobs:
       - name: ty check
         run: uv run ty check .
 
-      - name: Pytest
-        run: uv run pytest -q
+      - name: Pytest with coverage
+        run: uv run pytest -q --cov=pyproc_worker --cov-report=term-missing --cov-report=xml
+
+      - name: Check Python coverage is 100%
+        run: |
+          coverage=$(uv run coverage report --precision=2 | grep TOTAL | awk '{print $4}' | sed 's/%//')
+          echo "Total coverage: ${coverage}%"
+          if (( $(echo "$coverage < 100" | bc -l) )); then
+            echo "❌ Coverage ${coverage}% is below 100%"
+            exit 1
+          else
+            echo "✅ Coverage is 100%"
+          fi
 
   benchmark:
     name: Performance benchmarks and gates
