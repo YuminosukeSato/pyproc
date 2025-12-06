@@ -77,7 +77,9 @@ def _handle_generic_type(origin: type | None, args: tuple[type, ...]) -> dict[st
         return {"type": "array"}
 
     if origin is dict:
-        if len(args) >= 2:  # noqa: PLR2004
+        # dict[K, V] requires exactly 2 type arguments (key and value types)
+        min_dict_args = 2
+        if len(args) >= min_dict_args:
             return {
                 "type": "object",
                 "additionalProperties": _python_type_to_json_schema(args[1]),
@@ -93,9 +95,14 @@ def _handle_generic_type(origin: type | None, args: tuple[type, ...]) -> dict[st
         return {"type": "array"}
 
     # Handle Union types (including Optional)
-    if origin is type | type:  # Python 3.10+ union syntax
-        types = [_python_type_to_json_schema(arg) for arg in args]
-        return {"oneOf": types}
+    try:
+        import types as types_module
+
+        if origin is types_module.UnionType:  # Python 3.10+ union syntax
+            types = [_python_type_to_json_schema(arg) for arg in args]
+            return {"oneOf": types}
+    except AttributeError:
+        pass  # UnionType not available in Python < 3.10
 
     return None
 
@@ -113,15 +120,18 @@ def _handle_class_type(py_type: type) -> dict[str, object] | None:
     if not dataclasses.is_dataclass(py_type):
         return None
 
-    # Get dataclass fields
+    # Get dataclass fields and resolve type hints (handles string annotations)
     fields = dataclasses.fields(py_type)
+    type_hints = get_type_hints(py_type)
 
     # Build properties schema
     properties = {}
     required_fields = []
 
     for field in fields:
-        field_schema = _python_type_to_json_schema(field.type)
+        # Use resolved type hint instead of field.type (handles string annotations)
+        field_type = type_hints.get(field.name, field.type)
+        field_schema = _python_type_to_json_schema(field_type)
         properties[field.name] = field_schema
 
         # Check if field is required (no default value)
@@ -195,6 +205,14 @@ def get_exposed_schemas() -> dict[str, object]:
 
     """
     return {"schema_version": "1.0", "functions": _function_schemas}
+
+
+def clear_function_schemas() -> None:
+    """Clear the function schema registry.
+
+    This is primarily for testing purposes to prevent test contamination.
+    """
+    _function_schemas.clear()
 
 
 def expose(func: _ExposedFunc) -> _ExposedFunc:

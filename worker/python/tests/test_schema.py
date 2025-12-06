@@ -4,8 +4,6 @@ import importlib.util
 import sys
 from pathlib import Path
 
-import pytest
-
 
 def load_worker_module(worker_path: Path):
     """Load a worker module from a file path."""
@@ -23,6 +21,12 @@ def test_expose_captures_simple_types():
     """Test that @expose captures simple type hints (int, float, str, bool)."""
     # Import pyproc_worker to access the schema registry
     import pyproc_worker
+
+    # Clear registry to prevent test contamination
+    pyproc_worker.clear_function_schemas()
+
+    # Clear registry to prevent test contamination
+    pyproc_worker.clear_function_schemas()
 
     # Load the test worker with type hints
     fixtures_dir = Path(__file__).parent / "fixtures"
@@ -62,6 +66,12 @@ def test_expose_handles_missing_type_hints():
     """Test that @expose handles functions without type hints gracefully."""
     import pyproc_worker
 
+    # Clear registry to prevent test contamination
+    pyproc_worker.clear_function_schemas()
+
+    # Clear registry to prevent test contamination
+    pyproc_worker.clear_function_schemas()
+
     # Load the test worker
     fixtures_dir = Path(__file__).parent / "fixtures"
     worker_path = fixtures_dir / "worker_with_types.py"
@@ -82,6 +92,9 @@ def test_expose_handles_missing_type_hints():
 def test_expose_captures_generic_dict():
     """Test that @expose captures dict[K, V] generic type hints."""
     import pyproc_worker
+
+    # Clear registry to prevent test contamination
+    pyproc_worker.clear_function_schemas()
 
     # Load the test worker
     fixtures_dir = Path(__file__).parent / "fixtures"
@@ -113,6 +126,9 @@ def test_expose_captures_generic_list():
     """Test that @expose captures list[T] generic type hints."""
     import pyproc_worker
 
+    # Clear registry to prevent test contamination
+    pyproc_worker.clear_function_schemas()
+
     # Load the test worker
     fixtures_dir = Path(__file__).parent / "fixtures"
     worker_path = fixtures_dir / "worker_with_types.py"
@@ -141,6 +157,9 @@ def test_expose_captures_generic_list():
 def test_expose_captures_nested_generic():
     """Test that @expose captures nested generic types like list[dict[str, int]]."""
     import pyproc_worker
+
+    # Clear registry to prevent test contamination
+    pyproc_worker.clear_function_schemas()
 
     # Load the test worker
     fixtures_dir = Path(__file__).parent / "fixtures"
@@ -175,6 +194,9 @@ def test_expose_captures_nested_generic():
 def test_expose_captures_frozen_dataclass():
     """Test that @expose captures frozen dataclass types."""
     import pyproc_worker
+
+    # Clear registry to prevent test contamination
+    pyproc_worker.clear_function_schemas()
 
     # Load the test worker
     fixtures_dir = Path(__file__).parent / "fixtures"
@@ -221,6 +243,9 @@ def test_expose_captures_mutable_dataclass():
     """Test that @expose captures mutable (non-frozen) dataclass types."""
     import pyproc_worker
 
+    # Clear registry to prevent test contamination
+    pyproc_worker.clear_function_schemas()
+
     # Load the test worker
     fixtures_dir = Path(__file__).parent / "fixtures"
     worker_path = fixtures_dir / "worker_with_types.py"
@@ -265,6 +290,9 @@ def test_expose_captures_mutable_dataclass():
 def test_expose_captures_nested_dataclass():
     """Test that @expose captures nested dataclass types."""
     import pyproc_worker
+
+    # Clear registry to prevent test contamination
+    pyproc_worker.clear_function_schemas()
 
     # Load the test worker
     fixtures_dir = Path(__file__).parent / "fixtures"

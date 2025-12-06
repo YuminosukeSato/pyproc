@@ -339,7 +339,11 @@ if __name__ == "__main__":
 	if err != nil {
 		t.Fatalf("Failed to start worker with auto-detect: %v", err)
 	}
-	defer worker.Stop()
+	defer func() {
+		if err := worker.Stop(); err != nil {
+			t.Logf("Failed to stop worker: %v", err)
+		}
+	}()
 
 	// Verify worker is actually running
 	if !worker.IsRunning() {

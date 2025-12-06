@@ -57,7 +57,11 @@ func TestE2E_EnvironmentAutoDetection(t *testing.T) {
 	// 3. Start pool
 	err = pool.Start(ctx)
 	require.NoError(t, err)
-	defer pool.Shutdown(ctx)
+	defer func() {
+		if err := pool.Shutdown(ctx); err != nil {
+			t.Logf("Failed to shutdown pool: %v", err)
+		}
+	}()
 
 	// 4. Make calls using generic Call method
 	var echoResult map[string]interface{}
@@ -107,7 +111,11 @@ func TestE2E_AutoDetectWithEmptyPythonExec(t *testing.T) {
 	ctx := context.Background()
 	err = pool.Start(ctx)
 	require.NoError(t, err)
-	defer pool.Shutdown(ctx)
+	defer func() {
+		if err := pool.Shutdown(ctx); err != nil {
+			t.Logf("Failed to shutdown pool: %v", err)
+		}
+	}()
 
 	// Verify pool is functional
 	var result map[string]interface{}
@@ -171,7 +179,11 @@ func TestE2E_VirtualEnvDetection(t *testing.T) {
 
 		err = pool.Start(ctx)
 		require.NoError(t, err)
-		defer pool.Shutdown(ctx)
+		defer func() {
+			if err := pool.Shutdown(ctx); err != nil {
+				t.Logf("Failed to shutdown pool: %v", err)
+			}
+		}()
 
 		t.Logf("✅ Worker started successfully with virtual environment")
 	}
