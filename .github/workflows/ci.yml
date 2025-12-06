@@ -11,8 +11,11 @@ permissions:
 
 jobs:
   go:
-    name: Go build, lint, test
+    name: Go ${{ matrix.task }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        task: [test, lint, build]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,54 +26,22 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Go fmt check
-        run: |
-          fmt_out=$(gofmt -l . || true)
-          if [ -n "$fmt_out" ]; then
-            echo "Run 'go fmt' on the following files:" >&2
-            echo "$fmt_out" >&2
-            exit 1
-          fi
-
-      - name: Go vet
-        shell: bash
-        run: |
-          set -euo pipefail
-          pkgs=$(go list ./... | grep -v '/bench')
-          if [ -n "$pkgs" ]; then
-            echo "$pkgs" | xargs -r -n1 go vet
-          fi
-
-      - name: Build all packages
-        shell: bash
-        run: |
-          set -euo pipefail
-          pkgs=$(go list ./... | grep -v '/bench')
-          if [ -n "$pkgs" ]; then
-            echo "$pkgs" | xargs -r -n1 go build
-          fi
-
-      - name: Build examples
-        run: go build ./examples/basic
-
+      # Test task
       - name: Setup Python for tests
+        if: matrix.task == 'test'
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
       - name: Install Python worker package
+        if: matrix.task == 'test'
         run: |
           cd worker/python
           pip install -e .
           cd ../..
 
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          args: --timeout=5m
-
       - name: Test with coverage
+        if: matrix.task == 'test'
         shell: bash
         run: |
           set -euo pipefail
@@ -80,6 +51,7 @@ jobs:
           fi
 
       - name: Check Go coverage is 100%
+        if: matrix.task == 'test'
         shell: bash
         run: |
           set -euo pipefail
@@ -95,21 +67,64 @@ jobs:
           fi
 
       - name: Upload coverage to Codecov
+        if: matrix.task == 'test' && github.event_name == 'push'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.out
           fail_ci_if_error: false
-        if: github.event_name == 'push'
 
       - name: Update coverage report
+        if: matrix.task == 'test' && github.event_name == 'push'
         uses: ncruces/go-coverage-report@v0
         with:
           report: true
           chart: true
           amend: true
-        if: github.event_name == 'push'
         continue-on-error: true
+
+      # Lint task
+      - name: Go fmt check
+        if: matrix.task == 'lint'
+        run: |
+          fmt_out=$(gofmt -l . || true)
+          if [ -n "$fmt_out" ]; then
+            echo "Run 'go fmt' on the following files:" >&2
+            echo "$fmt_out" >&2
+            exit 1
+          fi
+
+      - name: golangci-lint
+        if: matrix.task == 'lint'
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+      # Build task
+      - name: Go vet
+        if: matrix.task == 'build'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pkgs=$(go list ./... | grep -v '/bench')
+          if [ -n "$pkgs" ]; then
+            echo "$pkgs" | xargs -r -n1 go vet
+          fi
+
+      - name: Build all packages
+        if: matrix.task == 'build'
+        shell: bash
+        run: |
+          set -euo pipefail
+          pkgs=$(go list ./... | grep -v '/bench')
+          if [ -n "$pkgs" ]; then
+            echo "$pkgs" | xargs -r -n1 go build
+          fi
+
+      - name: Build examples
+        if: matrix.task == 'build'
+        run: go build ./examples/basic
 
   python:
     name: Python lint and tests (uv)
