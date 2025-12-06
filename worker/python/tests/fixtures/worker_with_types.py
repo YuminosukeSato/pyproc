@@ -1,5 +1,7 @@
 """Test worker with type hints for schema testing."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from pyproc_worker import expose

@@ -4,8 +4,6 @@ import importlib.util
 import sys
 from pathlib import Path
 
-import pytest
-
 
 def load_worker_module(worker_path: Path):
     """Load a worker module from a file path."""

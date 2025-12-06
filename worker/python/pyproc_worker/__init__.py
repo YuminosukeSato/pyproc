@@ -116,12 +116,17 @@ def _handle_class_type(py_type: type) -> dict[str, object] | None:
     # Get dataclass fields
     fields = dataclasses.fields(py_type)
 
+    # Resolve type hints to handle string annotations (from __future__ import annotations)
+    type_hints = get_type_hints(py_type)
+
     # Build properties schema
     properties = {}
     required_fields = []
 
     for field in fields:
-        field_schema = _python_type_to_json_schema(field.type)
+        # Use resolved type hint instead of raw field.type
+        field_type = type_hints.get(field.name, field.type)
+        field_schema = _python_type_to_json_schema(field_type)
         properties[field.name] = field_schema
 
         # Check if field is required (no default value)
@@ -200,7 +205,8 @@ def expose(func: _ExposedFunc) -> _ExposedFunc:
 
     # Capture type hints
     try:
-        hints = get_type_hints(func)
+        # Pass function's module globals to resolve string annotations
+        hints = get_type_hints(func, globalns=getattr(func, "__globals__", None))
         sig = inspect.signature(func)
 
         parameters = []
