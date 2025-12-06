@@ -31,6 +31,14 @@ func TestNewTransport(t *testing.T) {
 			wantErr: true, // Will fail because socket doesn't exist
 		},
 		{
+			name: "Multiplexed transport",
+			config: TransportConfig{
+				Type:    "multiplexed",
+				Address: "/tmp/multiplex.sock",
+			},
+			wantErr: true, // Will fail because socket doesn't exist
+		},
+		{
 			name: "gRPC-TCP not implemented",
 			config: TransportConfig{
 				Type:    "grpc-tcp",
