@@ -1,0 +1,122 @@
+site_name: pyproc
+site_url: https://yuminosukesato.github.io/pyproc
+site_description: Run Python like a local function from Go — no CGO, no microservices
+site_author: Yuminosuke Sato
+repo_url: https://github.com/YuminosukeSato/pyproc
+repo_name: YuminosukeSato/pyproc
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: en
+  palette:
+    # Light mode
+    - scheme: default
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - scheme: slate
+      primary: indigo
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.code.copy
+    - content.code.annotate
+    - content.action.edit
+    - content.action.view
+
+plugins:
+  - search:
+      separator: '[\s\-\.]+'
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+
+markdown_extensions:
+  # コードハイライト
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+
+  # タブとアコーディオン
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+
+  # リストとテーブル
+  - def_list
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - tables
+
+  # リンクと画像
+  - attr_list
+  - md_in_html
+
+  # メタデータ
+  - meta
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/YuminosukeSato/pyproc
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/pyproc-worker/
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Overview: getting-started/index.md
+    - Quick Start: getting-started/quick-start.md
+    - Installation: getting-started/installation.md
+    - Your First Integration: getting-started/first-integration.md
+  - Guides:
+    - Type-Safe API: guides/type-safe-api.md
+    - Worker Development: guides/worker-development.md
+    - Error Handling: guides/error-handling.md
+    - Performance Tuning: guides/performance-tuning.md
+    - Testing: guides/testing.md
+  - Deployment:
+    - Docker: deployment/docker.md
+    - Kubernetes: deployment/kubernetes.md
+    - Monitoring: deployment/monitoring.md
+    - Troubleshooting: deployment/troubleshooting.md
+  - Reference:
+    - Architecture: reference/architecture.md
+    - Security: reference/security.md
+    - Operations: reference/operations.md
+    - Codec Performance: reference/codec-performance.md
+    - API Reference: https://pkg.go.dev/github.com/YuminosukeSato/pyproc
+  - Community:
+    - Contributing: community/contributing.md
+    - Changelog: community/changelog.md
+    - FAQ: community/faq.md
