@@ -99,7 +99,13 @@ def _handle_generic_type(origin: type | None, args: tuple[type, ...]) -> JsonSch
 
     # Handle Union types (including Optional)
     # Check for Union (typing.Union) or UnionType (PEP 604: X | Y syntax)
-    if origin is Union or isinstance(origin, type(types.UnionType)):
+    # Note: types.UnionType only exists in Python 3.10+
+    if origin is Union:
+        union_types = [_python_type_to_json_schema(arg) for arg in args]
+        return {"oneOf": union_types}
+
+    # Check for PEP 604 union syntax (Python 3.10+)
+    if hasattr(types, "UnionType") and isinstance(origin, type(types.UnionType)):
         union_types = [_python_type_to_json_schema(arg) for arg in args]
         return {"oneOf": union_types}
 
