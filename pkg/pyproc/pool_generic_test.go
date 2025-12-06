@@ -35,9 +35,6 @@ func TestTypedPool(t *testing.T) {
 		}
 		defer func() { _ = pool.Shutdown(ctx) }()
 
-		// Give workers time to stabilize
-		time.Sleep(100 * time.Millisecond)
-
 		// Create typed pool
 		typedPool := NewTypedPool[PredictRequest, PredictResponse](pool)
 
@@ -55,7 +52,7 @@ func TestTypedPool(t *testing.T) {
 	})
 
 	t.Run("TypedWorkerClient", func(t *testing.T) {
-		t.Skip("Skipping flaky batch call test - needs investigation")
+		t.Skip("BatchCall has a separate issue - needs deeper investigation")
 		// Create a regular pool
 		opts := PoolOptions{
 			Config: PoolConfig{
@@ -80,9 +77,6 @@ func TestTypedPool(t *testing.T) {
 			t.Fatalf("Failed to start pool: %v", err)
 		}
 		defer func() { _ = pool.Shutdown(ctx) }()
-
-		// Give workers time to stabilize
-		time.Sleep(100 * time.Millisecond)
 
 		// Create typed client for predict method
 		predictClient := NewTypedWorkerClient[PredictRequest, PredictResponse](pool, "predict")
@@ -122,7 +116,6 @@ func TestTypedPool(t *testing.T) {
 	})
 
 	t.Run("CallTyped Function", func(t *testing.T) {
-		t.Skip("Skipping flaky test - needs investigation")
 		// Create a regular pool
 		opts := PoolOptions{
 			Config: PoolConfig{
@@ -147,9 +140,6 @@ func TestTypedPool(t *testing.T) {
 			t.Fatalf("Failed to start pool: %v", err)
 		}
 		defer func() { _ = pool.Shutdown(ctx) }()
-
-		// Give workers time to stabilize
-		time.Sleep(100 * time.Millisecond)
 
 		// Test with transform
 		transformInput := TransformRequest{Text: "hello world"}

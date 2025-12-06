@@ -62,9 +62,6 @@ func TestPoolStart(t *testing.T) {
 		t.Fatalf("pool.Start failed: %v", err)
 	}
 
-	// Give workers time to stabilize
-	time.Sleep(500 * time.Millisecond)
-
 	// Check pool is running
 	if pool.shutdown.Load() {
 		t.Error("pool should not be shutdown")
@@ -115,8 +112,8 @@ func TestPoolCall(t *testing.T) {
 	}
 }
 
-func SkipTestPoolRoundRobin(t *testing.T) {
-	t.Skip("Temporarily skipping due to CI instability - workers become unhealthy")
+func TestPoolRoundRobin(t *testing.T) {
+	requireUnixSocket(t)
 	opts := PoolOptions{
 		Config: PoolConfig{
 			Workers:     3,
@@ -186,7 +183,7 @@ func SkipTestPoolRoundRobin(t *testing.T) {
 }
 
 func TestPoolBackpressure(t *testing.T) {
-	t.Skip("Temporarily skipping due to worker connection issues")
+	requireUnixSocket(t)
 	opts := PoolOptions{
 		Config: PoolConfig{
 			Workers:     1,

@@ -11,7 +11,6 @@ import (
 )
 
 func TestMultiplexedTransport(t *testing.T) {
-	t.Skip("Skipping multiplexed transport test - needs investigation")
 	t.Run("Concurrent Requests", func(t *testing.T) {
 		// Start a test worker
 		cfg := WorkerConfig{
@@ -30,9 +29,6 @@ func TestMultiplexedTransport(t *testing.T) {
 			t.Fatalf("Failed to start worker: %v", err)
 		}
 		defer func() { _ = worker.Stop() }()
-
-		// Give worker time to stabilize
-		time.Sleep(100 * time.Millisecond)
 
 		// Create multiplexed transport
 		transportConfig := TransportConfig{
@@ -146,9 +142,6 @@ func TestMultiplexedTransport(t *testing.T) {
 		}
 		defer func() { _ = worker.Stop() }()
 
-		// Give worker time to stabilize
-		time.Sleep(100 * time.Millisecond)
-
 		// Create multiplexed transport
 		transportConfig := TransportConfig{
 			Type:    "multiplexed",
@@ -207,9 +200,6 @@ func BenchmarkMultiplexedTransport(b *testing.B) {
 		b.Fatalf("Failed to start worker: %v", err)
 	}
 	defer func() { _ = worker.Stop() }()
-
-	// Give worker time to stabilize
-	time.Sleep(100 * time.Millisecond)
 
 	// Create multiplexed transport
 	transportConfig := TransportConfig{

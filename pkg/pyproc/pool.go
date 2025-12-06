@@ -122,28 +122,30 @@ func (p *Pool) Start(ctx context.Context) error {
 			}
 			return fmt.Errorf("failed to start worker %d: %w", i, err)
 		}
-		// Don't mark as healthy until first health check succeeds
-		// pw.healthy.Store(true) - removed, will be set by health check
 
-		// Pre-populate connection pool
-		for j := 0; j < p.opts.Config.MaxInFlight; j++ {
-			conn, err := p.connect(pw.worker.cfg.SocketPath)
-			if err != nil {
-				p.logger.Warn("failed to pre-populate connection", "error", err)
-				break
-			}
-			select {
-			case pw.connPool <- conn:
-			default:
-				if err := conn.Close(); err != nil {
-					p.logger.Error("failed to close connection", "error", err)
+		// Mark as healthy immediately after worker starts successfully
+		// Health monitoring will verify actual connectivity
+		pw.healthy.Store(true)
+
+		// Pre-populate connection pool (best effort, errors logged but not fatal)
+		go func(workerIdx int, worker *poolWorker) {
+			for j := 0; j < p.opts.Config.MaxInFlight; j++ {
+				conn, err := p.connect(worker.worker.cfg.SocketPath)
+				if err != nil {
+					p.logger.Debug("failed to pre-populate connection",
+						"worker", workerIdx, "attempt", j, "error", err)
+					break
+				}
+				select {
+				case worker.connPool <- conn:
+				default:
+					if err := conn.Close(); err != nil {
+						p.logger.Error("failed to close connection", "error", err)
+					}
 				}
 			}
-		}
+		}(i, pw)
 	}
-
-	// Give workers time to stabilize before health check
-	time.Sleep(100 * time.Millisecond)
 
 	// Start health monitoring
 	healthCtx, cancel := context.WithCancel(context.Background())
@@ -151,9 +153,10 @@ func (p *Pool) Start(ctx context.Context) error {
 	p.wg.Add(1)
 	go p.healthMonitor(healthCtx)
 
-	// Initial health check
+	// Initial health check to update health status struct
 	p.updateHealthStatus()
-	p.logger.Info("worker pool started successfully")
+	p.logger.Info("worker pool started successfully",
+		"healthy_workers", p.healthStatus.HealthyWorkers)
 	return nil
 }
 
