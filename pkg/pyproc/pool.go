@@ -124,18 +124,35 @@ func (p *Pool) Start(ctx context.Context) error {
 		}
 
 		// Mark as healthy immediately after worker starts successfully
-		// Health monitoring will verify actual connectivity
 		pw.healthy.Store(true)
 
-		// Pre-populate connection pool (best effort, errors logged but not fatal)
+		// Pre-populate connection pool asynchronously (best effort, errors logged but not fatal)
+		p.wg.Add(1)
 		go func(workerIdx int, worker *poolWorker) {
+			defer p.wg.Done()
 			for j := 0; j < p.opts.Config.MaxInFlight; j++ {
+				// Check if pool is shutting down before creating connection
+				if p.shutdown.Load() {
+					p.logger.Debug("skipping connection pre-population during shutdown",
+						"worker", workerIdx)
+					return
+				}
+
 				conn, err := p.connect(worker.worker.cfg.SocketPath)
 				if err != nil {
 					p.logger.Debug("failed to pre-populate connection",
 						"worker", workerIdx, "attempt", j, "error", err)
 					break
 				}
+
+				// Check again before sending to channel
+				if p.shutdown.Load() {
+					if err := conn.Close(); err != nil {
+						p.logger.Error("failed to close connection during shutdown", "error", err)
+					}
+					return
+				}
+
 				select {
 				case worker.connPool <- conn:
 				default:
@@ -153,10 +170,9 @@ func (p *Pool) Start(ctx context.Context) error {
 	p.wg.Add(1)
 	go p.healthMonitor(healthCtx)
 
-	// Initial health check to update health status struct
+	// Initial health check
 	p.updateHealthStatus()
-	p.logger.Info("worker pool started successfully",
-		"healthy_workers", p.healthStatus.HealthyWorkers)
+	p.logger.Info("worker pool started successfully")
 	return nil
 }
 
@@ -316,6 +332,10 @@ func (p *Pool) Shutdown(_ context.Context) error {
 		p.healthCancel()
 	}
 
+	// Wait for all goroutines (including connection pre-population) to finish
+	// This must happen BEFORE closing connection pools to avoid "send on closed channel"
+	p.wg.Wait()
+
 	// Close all connection pools
 	for _, pw := range p.workers {
 		close(pw.connPool)
@@ -331,9 +351,6 @@ func (p *Pool) Shutdown(_ context.Context) error {
 			errs = append(errs, fmt.Errorf("worker %d: %w", i, err))
 		}
 	}
-
-	// Wait for goroutines
-	p.wg.Wait()
 
 	if len(errs) > 0 {
 		return fmt.Errorf("shutdown errors: %v", errs)
