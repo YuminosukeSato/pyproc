@@ -198,6 +198,18 @@ func TestFramer_PartialRead(t *testing.T) {
 	}
 }
 
+func TestFramer_ReadMessageErrors(t *testing.T) {
+	tests := []struct {
+		name   string
+		framer *Framer
+	}{{"header EOF", NewFramer(bytes.NewBuffer(nil))}, {"frame too large", NewFramerWithMaxSize(bytes.NewBuffer(binary.BigEndian.AppendUint32(nil, 2)), 1)}}
+	for _, tt := range tests {
+		if _, err := tt.framer.ReadMessage(); err == nil {
+			t.Fatalf("%s: expected error", tt.name)
+		}
+	}
+}
+
 // partialReader simulates reading data in small chunks
 type partialReader struct {
 	data      []byte

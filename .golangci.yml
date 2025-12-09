@@ -1,3 +1,4 @@
+version: "2"
 run:
   timeout: 5m
 
@@ -8,8 +9,10 @@ linters:
     - revive
     - misspell
     - errcheck
-
-issues:
-  exclude-use-default: false
-  exclude-dirs:
-    - bench
+  exclusions:
+    rules:
+      - path: ^bench/
+        linters:
+          - errcheck
+          - revive
+          - staticcheck
