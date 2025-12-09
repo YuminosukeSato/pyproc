@@ -74,6 +74,13 @@ func TestErrorResponse(t *testing.T) {
 	}
 }
 
+func TestResponseErrorOK(t *testing.T) {
+	resp := Response{OK: true, ErrorMsg: "ignored"}
+	if err := resp.Error(); err != nil {
+		t.Fatalf("expected nil error for OK response, got %v", err)
+	}
+}
+
 func TestCancellationRequest(t *testing.T) {
 	cr := NewCancellationRequest(5, "timeout")
 	if cr.ID != 5 || cr.Reason != "timeout" {
