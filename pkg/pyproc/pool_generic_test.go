@@ -304,6 +304,16 @@ func TestTypedAPI_JSONMarshalError(t *testing.T) {
 	}
 }
 
+func TestTypedPool_Lifecycle(t *testing.T) {
+	pool := &Pool{}
+	tp := NewTypedPool[PredictRequest, PredictResponse](pool)
+
+	health := tp.Health()
+	if health.TotalWorkers != 0 {
+		t.Errorf("expected 0 workers for unstarted pool")
+	}
+}
+
 // TestTypedAPI_ResponseTypeMismatch tests that CallTyped returns a clear error
 // when the response from Python doesn't match the expected type
 func TestTypedAPI_ResponseTypeMismatch(t *testing.T) {
