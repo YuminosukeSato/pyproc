@@ -298,3 +298,27 @@ func TestWorker_InvalidScript(t *testing.T) {
 		t.Error("Worker should not be running with invalid script")
 	}
 }
+
+func TestWorker_GetState(t *testing.T) {
+	cfg := WorkerConfig{ID: "state-test", SocketPath: "/tmp/state.sock"}
+	w := NewWorker(cfg, nil)
+	if w.GetState() != WorkerStateStopped {
+		t.Errorf("expected initial state Stopped, got %v", w.GetState())
+	}
+}
+
+func TestWorker_GetID(t *testing.T) {
+	cfg := WorkerConfig{ID: "my-worker-id", SocketPath: "/tmp/id.sock"}
+	w := NewWorker(cfg, nil)
+	if w.GetID() != "my-worker-id" {
+		t.Errorf("expected ID 'my-worker-id', got '%s'", w.GetID())
+	}
+}
+
+func TestWorker_GetSocketPath(t *testing.T) {
+	cfg := WorkerConfig{ID: "sock-test", SocketPath: "/tmp/custom.sock"}
+	w := NewWorker(cfg, nil)
+	if w.GetSocketPath() != "/tmp/custom.sock" {
+		t.Errorf("expected socket '/tmp/custom.sock', got '%s'", w.GetSocketPath())
+	}
+}
