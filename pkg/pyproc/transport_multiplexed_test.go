@@ -3,6 +3,7 @@ package pyproc
 import (
 	"context"
 	"fmt"
+	"net"
 	"sync"
 	"testing"
 	"time"
@@ -187,6 +188,152 @@ func TestMultiplexedTransport(t *testing.T) {
 			t.Fatalf("Response not OK: %v", resp.Error())
 		}
 	})
+}
+
+func TestNewMultiplexedTransport_EmptyAddress(t *testing.T) {
+	cfg := TransportConfig{
+		Type:    "multiplexed",
+		Address: "",
+	}
+	logger := NewLogger(LoggingConfig{Level: "error"})
+
+	_, err := NewMultiplexedTransport(cfg, logger)
+	if err == nil {
+		t.Error("expected error for empty address")
+	}
+}
+
+func TestNewMultiplexedTransport_NonExistentSocket(t *testing.T) {
+	cfg := TransportConfig{
+		Type:    "multiplexed",
+		Address: "/tmp/nonexistent-multiplex-12345.sock",
+	}
+	logger := NewLogger(LoggingConfig{Level: "error"})
+
+	_, err := NewMultiplexedTransport(cfg, logger)
+	if err == nil {
+		t.Error("expected error for non-existent socket")
+	}
+}
+
+func TestMultiplexedTransport_CallAfterClose(t *testing.T) {
+	requireUnixSocket(t)
+	socketPath := "/tmp/mux-call-close.sock"
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	defer func() { _ = listener.Close() }()
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+		_ = conn.Close()
+	}()
+
+	cfg := TransportConfig{
+		Type:    "multiplexed",
+		Address: socketPath,
+	}
+	logger := NewLogger(LoggingConfig{Level: "error"})
+
+	transport, err := NewMultiplexedTransport(cfg, logger)
+	if err != nil {
+		t.Fatalf("failed to create transport: %v", err)
+	}
+
+	_ = transport.Close()
+
+	req, _ := protocol.NewRequest(1, "test", nil)
+	_, err = transport.Call(context.Background(), req)
+	if err == nil {
+		t.Error("expected error when calling after close")
+	}
+}
+
+func TestMultiplexedTransport_IsHealthy(t *testing.T) {
+	requireUnixSocket(t)
+	socketPath := "/tmp/mux-health.sock"
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	defer func() { _ = listener.Close() }()
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+		_ = conn.Close()
+	}()
+
+	cfg := TransportConfig{
+		Type:    "multiplexed",
+		Address: socketPath,
+	}
+	logger := NewLogger(LoggingConfig{Level: "error"})
+
+	transport, err := NewMultiplexedTransport(cfg, logger)
+	if err != nil {
+		t.Fatalf("failed to create transport: %v", err)
+	}
+
+	if !transport.IsHealthy() {
+		t.Error("transport should be healthy initially")
+	}
+
+	_ = transport.Close()
+
+	if transport.IsHealthy() {
+		t.Error("transport should not be healthy after close")
+	}
+}
+
+func TestMultiplexedTransport_DoubleClose(t *testing.T) {
+	requireUnixSocket(t)
+	socketPath := "/tmp/mux-dclose.sock"
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	defer func() { _ = listener.Close() }()
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		_ = conn.Close()
+	}()
+
+	cfg := TransportConfig{
+		Type:    "multiplexed",
+		Address: socketPath,
+	}
+	logger := NewLogger(LoggingConfig{Level: "error"})
+
+	transport, err := NewMultiplexedTransport(cfg, logger)
+	if err != nil {
+		t.Fatalf("failed to create transport: %v", err)
+	}
+
+	err1 := transport.Close()
+	err2 := transport.Close()
+
+	if err1 != nil {
+		t.Errorf("first close should succeed: %v", err1)
+	}
+	if err2 != nil {
+		t.Errorf("second close should succeed (no-op): %v", err2)
+	}
 }
 
 func BenchmarkMultiplexedTransport(b *testing.B) {
