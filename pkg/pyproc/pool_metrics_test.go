@@ -54,3 +54,27 @@ func TestPoolWithMetricsReset(t *testing.T) {
 		t.Fatalf("timestamp should be set in snapshot")
 	}
 }
+
+func TestNewPoolWithMetrics_InvalidConfig(t *testing.T) {
+	opts := PoolOptions{
+		Config: PoolConfig{Workers: 0},
+	}
+	_, err := NewPoolWithMetrics(opts, nil)
+	if err == nil {
+		t.Error("expected error for zero workers")
+	}
+}
+
+func TestNewPoolWithMetrics_Valid(t *testing.T) {
+	opts := PoolOptions{
+		Config:       PoolConfig{Workers: 1},
+		WorkerConfig: WorkerConfig{SocketPath: "/tmp/test.sock"},
+	}
+	pm, err := NewPoolWithMetrics(opts, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pm.Pool == nil || pm.metrics == nil {
+		t.Error("pool or metrics is nil")
+	}
+}
