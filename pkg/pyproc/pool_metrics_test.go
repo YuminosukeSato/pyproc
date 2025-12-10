@@ -1,6 +1,7 @@
 package pyproc
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -52,5 +53,82 @@ func TestPoolWithMetricsReset(t *testing.T) {
 	snap := pm.GetMetrics()
 	if snap.Timestamp.IsZero() {
 		t.Fatalf("timestamp should be set in snapshot")
+	}
+}
+
+func TestPoolWithMetrics_Call(t *testing.T) {
+	requireUnixSocket(t)
+
+	opts := PoolOptions{
+		Config: PoolConfig{Workers: 1, MaxInFlight: 5},
+		WorkerConfig: WorkerConfig{
+			SocketPath:   "/tmp/test-metrics-call.sock",
+			PythonExec:   "python3",
+			WorkerScript: "../../examples/basic/worker.py",
+		},
+	}
+
+	pm, err := NewPoolWithMetrics(opts, nil)
+	if err != nil {
+		t.Fatalf("failed to create pool: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := pm.Start(ctx); err != nil {
+		t.Fatalf("failed to start pool: %v", err)
+	}
+	defer func() { _ = pm.Shutdown(ctx) }()
+
+	time.Sleep(100 * time.Millisecond)
+
+	var output map[string]interface{}
+	err = pm.Call(ctx, "predict", map[string]interface{}{"value": 10}, &output)
+	if err != nil {
+		t.Fatalf("Call failed: %v", err)
+	}
+
+	snap := pm.GetMetrics()
+	if snap.RequestsTotal != 1 {
+		t.Errorf("expected 1 request, got %d", snap.RequestsTotal)
+	}
+	if snap.RequestsSucceeded != 1 {
+		t.Errorf("expected 1 succeeded, got %d", snap.RequestsSucceeded)
+	}
+}
+
+func TestPoolWithMetrics_Call_Timeout(t *testing.T) {
+	requireUnixSocket(t)
+
+	opts := PoolOptions{
+		Config: PoolConfig{Workers: 1, MaxInFlight: 5},
+		WorkerConfig: WorkerConfig{
+			SocketPath:   "/tmp/test-metrics-timeout.sock",
+			PythonExec:   "python3",
+			WorkerScript: "../../examples/basic/worker.py",
+		},
+	}
+
+	pm, err := NewPoolWithMetrics(opts, nil)
+	if err != nil {
+		t.Fatalf("failed to create pool: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := pm.Start(ctx); err != nil {
+		t.Fatalf("failed to start pool: %v", err)
+	}
+	defer func() { _ = pm.Shutdown(ctx) }()
+
+	time.Sleep(100 * time.Millisecond)
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
+	defer cancel()
+
+	var output map[string]interface{}
+	_ = pm.Call(timeoutCtx, "slow_process", map[string]interface{}{"delay": 10}, &output)
+
+	snap := pm.GetMetrics()
+	if snap.RequestsTotal != 1 {
+		t.Errorf("expected 1 request, got %d", snap.RequestsTotal)
 	}
 }
