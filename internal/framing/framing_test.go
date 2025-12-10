@@ -227,3 +227,313 @@ func (r *partialReader) Read(p []byte) (n int, err error) {
 func (r *partialReader) Write(_ []byte) (n int, err error) {
 	return 0, io.ErrClosedPipe
 }
+
+func TestFramer_ReadMessage_EOF(t *testing.T) {
+	buf := &bytes.Buffer{}
+	framer := NewFramer(buf)
+	_, err := framer.ReadMessage()
+	if err != io.EOF {
+		t.Errorf("expected io.EOF, got %v", err)
+	}
+}
+
+func TestFramer_ReadMessage_FrameTooLarge(t *testing.T) {
+	var buf bytes.Buffer
+	lengthBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(lengthBuf, DefaultMaxFrameSize+1)
+	buf.Write(lengthBuf)
+
+	framer := NewFramer(&buf)
+	_, err := framer.ReadMessage()
+	if err == nil {
+		t.Error("expected error for oversized frame")
+	}
+}
+
+func TestUnmarshalFrame_TooShort(t *testing.T) {
+	data := make([]byte, FrameHeaderSize-1)
+	_, err := UnmarshalFrame(data)
+	if err == nil {
+		t.Error("expected error for short frame")
+	}
+}
+
+func TestUnmarshalFrame_InvalidMagic(t *testing.T) {
+	data := make([]byte, FrameHeaderSize)
+	data[0], data[1] = 0x00, 0x00
+	_, err := UnmarshalFrame(data)
+	if err == nil {
+		t.Error("expected error for invalid magic")
+	}
+}
+
+func TestUnmarshalFrame_LengthMismatch(t *testing.T) {
+	frame := NewFrame(1, []byte("test"))
+	data := frame.Marshal()
+	data = append(data, 0x00)
+	_, err := UnmarshalFrame(data)
+	if err == nil {
+		t.Error("expected error for length mismatch")
+	}
+}
+
+func TestUnmarshalFrame_CRCMismatch(t *testing.T) {
+	frame := NewFrame(1, []byte("test"))
+	data := frame.Marshal()
+	data[len(data)-1] ^= 0xFF
+	_, err := UnmarshalFrame(data)
+	if err == nil {
+		t.Error("expected error for CRC mismatch")
+	}
+}
+
+func TestWriteFrame_NonEnhancedMode(t *testing.T) {
+	var buf bytes.Buffer
+	framer := NewFramer(&buf)
+	frame := NewFrame(1, []byte("test"))
+	if err := framer.WriteFrame(frame); err != nil {
+		t.Errorf("WriteFrame failed: %v", err)
+	}
+}
+
+func TestWriteFrame_EnhancedMode(t *testing.T) {
+	var buf bytes.Buffer
+	framer := NewEnhancedFramer(&buf)
+	frame := NewFrame(1, []byte("test"))
+	if err := framer.WriteFrame(frame); err != nil {
+		t.Errorf("WriteFrame failed: %v", err)
+	}
+}
+
+func TestWriteFrame_EnhancedMode_TooLarge(t *testing.T) {
+	var buf bytes.Buffer
+	framer := NewFramerWithMaxSize(&buf, 10)
+	framer.enhancedMode = true
+	frame := NewFrame(1, make([]byte, 100))
+	if err := framer.WriteFrame(frame); err == nil {
+		t.Error("expected error for oversized payload")
+	}
+}
+
+func TestReadFrame_NonEnhancedMode(t *testing.T) {
+	var buf bytes.Buffer
+	writer := NewFramer(&buf)
+	_ = writer.WriteMessage([]byte("test"))
+
+	reader := NewFramer(&buf)
+	frame, err := reader.ReadFrame()
+	if err != nil {
+		t.Fatalf("ReadFrame failed: %v", err)
+	}
+	if string(frame.Payload) != "test" {
+		t.Errorf("unexpected payload: %s", frame.Payload)
+	}
+}
+
+func TestReadFrame_EnhancedMode(t *testing.T) {
+	var buf bytes.Buffer
+	writer := NewEnhancedFramer(&buf)
+	frame := NewFrame(42, []byte("hello"))
+	_ = writer.WriteFrame(frame)
+
+	reader := NewEnhancedFramer(&buf)
+	readFrame, err := reader.ReadFrame()
+	if err != nil {
+		t.Fatalf("ReadFrame failed: %v", err)
+	}
+	if readFrame.Header.RequestID != 42 {
+		t.Errorf("unexpected request ID: %d", readFrame.Header.RequestID)
+	}
+}
+
+func TestReadFrame_EnhancedMode_EOF(t *testing.T) {
+	buf := &bytes.Buffer{}
+	framer := NewEnhancedFramer(buf)
+	_, err := framer.ReadFrame()
+	if err != io.EOF {
+		t.Errorf("expected io.EOF, got %v", err)
+	}
+}
+
+func TestReadFrame_EnhancedMode_InvalidMagic(t *testing.T) {
+	var buf bytes.Buffer
+	buf.Write([]byte{0x00, 0x00})
+	framer := NewEnhancedFramer(&buf)
+	_, err := framer.ReadFrame()
+	if err == nil {
+		t.Error("expected error for invalid magic")
+	}
+}
+
+type errorWriter struct{}
+
+func (e *errorWriter) Write(_ []byte) (int, error) { return 0, io.ErrShortWrite }
+func (e *errorWriter) Read(_ []byte) (int, error)  { return 0, io.ErrUnexpectedEOF }
+
+func TestWriteMessage_WriteError(t *testing.T) {
+	framer := NewFramer(&errorWriter{})
+	err := framer.WriteMessage([]byte("test"))
+	if err == nil {
+		t.Error("expected write error")
+	}
+}
+
+func TestWriteFrame_WriteError(t *testing.T) {
+	framer := NewEnhancedFramer(&errorWriter{})
+	frame := NewFrame(1, []byte("test"))
+	err := framer.WriteFrame(frame)
+	if err == nil {
+		t.Error("expected write error")
+	}
+}
+
+func TestReadMessage_ReadDataError(t *testing.T) {
+	var buf bytes.Buffer
+	lengthBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(lengthBuf, 10)
+	buf.Write(lengthBuf)
+	buf.Write([]byte("short"))
+
+	framer := NewFramer(&buf)
+	_, err := framer.ReadMessage()
+	if err == nil {
+		t.Error("expected read data error")
+	}
+}
+
+func TestReadFrame_EnhancedMode_HeaderReadError(t *testing.T) {
+	var buf bytes.Buffer
+	buf.Write([]byte{MagicByte1, MagicByte2})
+
+	framer := NewEnhancedFramer(&buf)
+	_, err := framer.ReadFrame()
+	if err == nil {
+		t.Error("expected header read error")
+	}
+}
+
+func TestReadFrame_EnhancedMode_FrameTooLarge(t *testing.T) {
+	var buf bytes.Buffer
+	buf.Write([]byte{MagicByte1, MagicByte2})
+	lengthBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(lengthBuf, DefaultMaxFrameSize+FrameHeaderSize+1)
+	buf.Write(lengthBuf)
+	buf.Write(make([]byte, 12))
+
+	framer := NewEnhancedFramer(&buf)
+	_, err := framer.ReadFrame()
+	if err == nil {
+		t.Error("expected frame too large error")
+	}
+}
+
+type lengthOnlyWriter struct {
+	written int
+}
+
+func (w *lengthOnlyWriter) Write(p []byte) (int, error) {
+	if w.written == 0 {
+		w.written = len(p)
+		return len(p), nil
+	}
+	return 0, io.ErrShortWrite
+}
+func (w *lengthOnlyWriter) Read(_ []byte) (int, error) { return 0, io.EOF }
+
+func TestWriteMessage_DataWriteError(t *testing.T) {
+	framer := NewFramer(&lengthOnlyWriter{})
+	err := framer.WriteMessage([]byte("test"))
+	if err == nil {
+		t.Error("expected data write error")
+	}
+}
+
+type lengthErrorReader struct{}
+
+func (r *lengthErrorReader) Read(_ []byte) (int, error)  { return 0, io.ErrUnexpectedEOF }
+func (r *lengthErrorReader) Write(_ []byte) (int, error) { return 0, nil }
+
+func TestReadMessage_LengthReadError(t *testing.T) {
+	framer := NewFramer(&lengthErrorReader{})
+	_, err := framer.ReadMessage()
+	if err == nil || err == io.EOF {
+		t.Errorf("expected non-EOF read error, got %v", err)
+	}
+}
+
+func TestReadFrame_EnhancedMode_PayloadReadError(t *testing.T) {
+	var buf bytes.Buffer
+	buf.Write([]byte{MagicByte1, MagicByte2})
+	lengthBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(lengthBuf, FrameHeaderSize+10)
+	buf.Write(lengthBuf)
+	buf.Write(make([]byte, 8))
+
+	framer := NewEnhancedFramer(&buf)
+	_, err := framer.ReadFrame()
+	if err == nil {
+		t.Error("expected payload read error")
+	}
+}
+
+func TestReadFrame_EnhancedMode_EmptyPayload(t *testing.T) {
+	var buf bytes.Buffer
+	frame := NewFrame(1, []byte{})
+	writer := NewEnhancedFramer(&buf)
+	_ = writer.WriteFrame(frame)
+
+	reader := NewEnhancedFramer(&buf)
+	readFrame, err := reader.ReadFrame()
+	if err != nil {
+		t.Fatalf("ReadFrame failed: %v", err)
+	}
+	if len(readFrame.Payload) != 0 {
+		t.Errorf("expected empty payload, got %d bytes", len(readFrame.Payload))
+	}
+}
+
+func TestReadFrame_NonEnhancedMode_Error(t *testing.T) {
+	framer := NewFramer(&errorWriter{})
+	_, err := framer.ReadFrame()
+	if err == nil {
+		t.Error("expected read error")
+	}
+}
+
+func TestReadFrame_EnhancedMode_MagicReadError(t *testing.T) {
+	framer := NewEnhancedFramer(&lengthErrorReader{})
+	_, err := framer.ReadFrame()
+	if err == nil || err == io.EOF {
+		t.Errorf("expected non-EOF magic read error, got %v", err)
+	}
+}
+
+type phaseReader struct {
+	phase int
+}
+
+func (r *phaseReader) Read(p []byte) (int, error) {
+	switch r.phase {
+	case 0:
+		p[0], p[1] = MagicByte1, MagicByte2
+		r.phase++
+		return 2, nil
+	case 1:
+		header := make([]byte, FrameHeaderSize-2)
+		binary.BigEndian.PutUint32(header[0:4], FrameHeaderSize+10)
+		copy(p, header)
+		r.phase++
+		return FrameHeaderSize - 2, nil
+	default:
+		return 0, io.ErrUnexpectedEOF
+	}
+}
+func (r *phaseReader) Write(_ []byte) (int, error) { return 0, nil }
+
+func TestReadFrame_EnhancedMode_PayloadReadErrorActual(t *testing.T) {
+	framer := NewEnhancedFramer(&phaseReader{})
+	_, err := framer.ReadFrame()
+	if err == nil {
+		t.Error("expected payload read error")
+	}
+}
