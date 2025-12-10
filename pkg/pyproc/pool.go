@@ -20,6 +20,13 @@ type PoolOptions struct {
 	WorkerConfig WorkerConfig // Configuration for each worker
 }
 
+type workerHandle interface {
+	Start(context.Context) error
+	Stop() error
+	IsHealthy(context.Context) bool
+	GetSocketPath() string
+}
+
 // Pool manages multiple Python workers with load balancing
 type Pool struct {
 	opts     PoolOptions
@@ -53,7 +60,7 @@ type activeRequest struct {
 
 // poolWorker wraps a Worker with connection pooling
 type poolWorker struct {
-	worker    *Worker
+	worker    workerHandle
 	connPool  chan net.Conn
 	requestID atomic.Uint64
 	healthy   atomic.Bool
@@ -130,7 +137,7 @@ func (p *Pool) Start(ctx context.Context) error {
 	// We do minimal pre-population to reduce startup latency while avoiding complexity
 	for _, pw := range p.workers {
 		// Pre-populate just one connection per worker for faster first call
-		conn, err := p.connect(pw.worker.cfg.SocketPath)
+		conn, err := p.connect(pw.worker.GetSocketPath())
 		if err != nil {
 			p.logger.Debug("failed to pre-populate connection", "error", err)
 			continue
@@ -201,7 +208,7 @@ func (p *Pool) Call(ctx context.Context, method string, input interface{}, outpu
 	default:
 		// Create new connection if pool is empty
 		var err error
-		conn, err = p.connect(pw.worker.cfg.SocketPath)
+		conn, err = p.connect(pw.worker.GetSocketPath())
 		if err != nil {
 			return fmt.Errorf("failed to connect: %w", err)
 		}
