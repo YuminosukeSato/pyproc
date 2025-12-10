@@ -227,3 +227,25 @@ func (r *partialReader) Read(p []byte) (n int, err error) {
 func (r *partialReader) Write(_ []byte) (n int, err error) {
 	return 0, io.ErrClosedPipe
 }
+
+func TestFramer_ReadMessage_EOF(t *testing.T) {
+	buf := &bytes.Buffer{}
+	framer := NewFramer(buf)
+	_, err := framer.ReadMessage()
+	if err != io.EOF {
+		t.Errorf("expected io.EOF, got %v", err)
+	}
+}
+
+func TestFramer_ReadMessage_FrameTooLarge(t *testing.T) {
+	var buf bytes.Buffer
+	lengthBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(lengthBuf, DefaultMaxFrameSize+1)
+	buf.Write(lengthBuf)
+
+	framer := NewFramer(&buf)
+	_, err := framer.ReadMessage()
+	if err == nil {
+		t.Error("expected error for oversized frame")
+	}
+}
