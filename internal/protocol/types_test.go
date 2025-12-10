@@ -144,3 +144,10 @@ func TestWrapUnwrapErrors(t *testing.T) {
 		t.Fatal("expected unmarshal error")
 	}
 }
+
+func TestResponse_Error_OK(t *testing.T) {
+	resp := Response{OK: true}
+	if err := resp.Error(); err != nil {
+		t.Errorf("expected nil error for OK response, got %v", err)
+	}
+}
