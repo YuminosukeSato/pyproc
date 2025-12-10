@@ -63,7 +63,7 @@ func (c *XMLRPCClient) Call(ctx context.Context, method string, args interface{}
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read response
 	body, err := io.ReadAll(resp.Body)
@@ -109,7 +109,7 @@ func (c *XMLRPCClient) encodeValue(buf *bytes.Buffer, v interface{}) error {
 		buf.WriteString(fmt.Sprintf(`<int>%d</int>`, val))
 	case string:
 		buf.WriteString(`<string>`)
-		xml.EscapeText(buf, []byte(val))
+		_ = xml.EscapeText(buf, []byte(val))
 		buf.WriteString(`</string>`)
 	case map[string]interface{}:
 		buf.WriteString(`<struct>`)

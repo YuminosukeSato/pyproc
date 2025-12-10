@@ -11,5 +11,8 @@ linters:
 
 issues:
   exclude-use-default: false
-  exclude-dirs:
-    - bench
+  exclude-rules:
+    - path: "bench/"
+      linters:
+        - revive
+        - staticcheck
