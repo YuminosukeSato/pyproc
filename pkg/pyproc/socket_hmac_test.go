@@ -201,3 +201,90 @@ func TestSecureConnIsAuthenticated(t *testing.T) {
 		t.Error("expected IsAuthenticated to return false")
 	}
 }
+
+func TestHMACListener_Accept(t *testing.T) {
+	requireUnixSocket(t)
+	tmpDir := t.TempDir()
+	socketPath := filepath.Join(tmpDir, "hmac-accept.sock")
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+
+	secret := []byte("test-secret-for-accept")
+	hmacListener := NewHMACListener(listener, secret)
+	defer func() { _ = hmacListener.Close() }()
+
+	clientAuth := NewHMACAuth(secret)
+
+	go func() {
+		conn, err := net.Dial("unix", socketPath)
+		if err != nil {
+			return
+		}
+		_ = clientAuth.AuthenticateClient(conn)
+		_ = conn.Close()
+	}()
+
+	conn, err := hmacListener.Accept()
+	if err != nil {
+		t.Fatalf("Accept failed: %v", err)
+	}
+	_ = conn.Close()
+}
+
+func TestDialSecure(t *testing.T) {
+	requireUnixSocket(t)
+	tmpDir := t.TempDir()
+	socketPath := filepath.Join(tmpDir, "dial-secure.sock")
+
+	secret := []byte("test-secret-for-dial")
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	hmacListener := NewHMACListener(listener, secret)
+	defer func() { _ = hmacListener.Close() }()
+
+	go func() {
+		conn, _ := hmacListener.Accept()
+		if conn != nil {
+			_ = conn.Close()
+		}
+	}()
+
+	conn, err := DialSecure("unix", socketPath, secret)
+	if err != nil {
+		t.Fatalf("DialSecure failed: %v", err)
+	}
+	if !conn.IsAuthenticated() {
+		t.Error("expected authenticated connection")
+	}
+	_ = conn.Close()
+}
+
+func TestDialSecure_WrongSecret(t *testing.T) {
+	requireUnixSocket(t)
+	socketPath := "/tmp/dial-wrong.sock"
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	hmacListener := NewHMACListener(listener, []byte("server-secret"))
+	defer func() { _ = hmacListener.Close() }()
+
+	go func() {
+		conn, _ := hmacListener.Accept()
+		if conn != nil {
+			_ = conn.Close()
+		}
+	}()
+
+	_, err = DialSecure("unix", socketPath, []byte("wrong-secret"))
+	if err == nil {
+		t.Error("expected error for wrong secret")
+	}
+}
