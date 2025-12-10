@@ -2,7 +2,7 @@
 
 import pytest
 
-from pyproc_worker.codec import HAS_MSGSPEC, MsgpackCodec, MsgspecCodec, get_codec
+from pyproc_worker.codec import Codec, HAS_MSGSPEC, MsgpackCodec, MsgspecCodec, get_codec
 
 
 def test_msgspec_json_codec() -> None:
@@ -90,31 +90,37 @@ def test_msgspec_performance() -> None:
     if not HAS_MSGSPEC:
         pytest.skip("msgspec not installed")
 
+    import statistics
     import time
 
-    # Create a large dataset
     large_data = {
         f"key_{i}": {"value": i, "squared": i**2, "text": f"item_{i}"} for i in range(1000)
     }
 
-    # Test stdlib JSON
     json_codec = get_codec("json")
-    start = time.perf_counter()
-    for _ in range(10):
-        encoded = json_codec.encode(large_data)
-        _ = json_codec.decode(encoded)
-    json_time = time.perf_counter() - start
-
-    # Test msgspec
     msgspec_codec = get_codec("msgspec")
-    start = time.perf_counter()
-    for _ in range(10):
-        encoded = msgspec_codec.encode(large_data)
-        _ = msgspec_codec.decode(encoded)
-    msgspec_time = time.perf_counter() - start
 
-    # msgspec should be faster
-    # Allow some margin for CI environments
-    assert msgspec_time < json_time * 1.5, (
-        f"msgspec ({msgspec_time:.4f}s) should be faster than JSON ({json_time:.4f}s)"
+    def measure(codec: Codec, iterations: int) -> float:
+        start = time.perf_counter()
+        for _ in range(iterations):
+            encoded = codec.encode(large_data)
+            _ = codec.decode(encoded)
+        return time.perf_counter() - start
+
+    for codec in [json_codec, msgspec_codec]:
+        for _ in range(20):
+            encoded = codec.encode(large_data)
+            _ = codec.decode(encoded)
+
+    rounds = 5
+    iterations = 100
+    json_samples = [measure(json_codec, iterations) for _ in range(rounds)]
+    msgspec_samples = [measure(msgspec_codec, iterations) for _ in range(rounds)]
+
+    json_median = statistics.median(json_samples)
+    msgspec_median = statistics.median(msgspec_samples)
+
+    assert msgspec_median < json_median * 1.5, (
+        "msgspec median should be within 1.5x of JSON median: "
+        f"msgspec={msgspec_median:.4f}s json={json_median:.4f}s"
     )
