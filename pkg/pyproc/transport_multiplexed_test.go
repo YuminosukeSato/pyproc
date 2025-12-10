@@ -296,6 +296,45 @@ func TestMultiplexedTransport_IsHealthy(t *testing.T) {
 	}
 }
 
+func TestMultiplexedTransport_ReadError(t *testing.T) {
+	requireUnixSocket(t)
+	socketPath := "/tmp/mux-read-error.sock"
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	defer func() { _ = listener.Close() }()
+
+	serverConn := make(chan net.Conn, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		serverConn <- conn
+	}()
+
+	cfg := TransportConfig{Type: "multiplexed", Address: socketPath}
+	logger := NewLogger(LoggingConfig{Level: "error"})
+
+	transport, err := NewMultiplexedTransport(cfg, logger)
+	if err != nil {
+		t.Fatalf("failed to create transport: %v", err)
+	}
+
+	conn := <-serverConn
+	_ = conn.Close()
+
+	time.Sleep(50 * time.Millisecond)
+
+	req, _ := protocol.NewRequest(1, "test", nil)
+	_, err = transport.Call(context.Background(), req)
+	if err == nil {
+		t.Error("expected error after server closed connection")
+	}
+}
+
 func TestMultiplexedTransport_DoubleClose(t *testing.T) {
 	requireUnixSocket(t)
 	socketPath := "/tmp/mux-dclose.sock"
