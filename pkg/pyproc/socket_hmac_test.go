@@ -14,8 +14,7 @@ func TestNewHMACAuth(t *testing.T) {
 
 	if auth == nil {
 		t.Fatal("expected non-nil HMACAuth")
-	}
-	if !bytes.Equal(auth.secret, secret) {
+	} else if !bytes.Equal(auth.secret, secret) {
 		t.Error("secret mismatch")
 	}
 }
@@ -180,12 +179,12 @@ func TestNewHMACListener(t *testing.T) {
 
 	if hmacListener == nil {
 		t.Fatal("expected non-nil HMACListener")
+	} else {
+		if hmacListener.auth == nil {
+			t.Error("expected non-nil auth in HMACListener")
+		}
+		_ = hmacListener.Close()
 	}
-	if hmacListener.auth == nil {
-		t.Error("expected non-nil auth in HMACListener")
-	}
-
-	_ = hmacListener.Close()
 }
 
 func TestSecureConnIsAuthenticated(t *testing.T) {
