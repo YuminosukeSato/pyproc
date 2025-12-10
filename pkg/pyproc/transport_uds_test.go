@@ -129,6 +129,118 @@ func TestUDSTransport_Health(t *testing.T) {
 	}
 }
 
+func TestUDSTransport_Reconnect(t *testing.T) {
+	requireUnixSocket(t)
+	socketPath := "/tmp/reconnect-test.sock"
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	defer func() { _ = listener.Close() }()
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+
+	cfg := TransportConfig{Type: "uds", Address: socketPath}
+	logger := NewLogger(LoggingConfig{Level: "error"})
+
+	transport, err := NewUDSTransport(cfg, logger)
+	if err != nil {
+		t.Fatalf("failed to create transport: %v", err)
+	}
+	defer func() { _ = transport.Close() }()
+
+	transport.healthy = false
+
+	req, _ := protocol.NewRequest(1, "test", nil)
+	_, _ = transport.Call(context.Background(), req)
+}
+
+func TestUDSTransport_ReconnectFail(t *testing.T) {
+	requireUnixSocket(t)
+	socketPath := "/tmp/reconnect-fail.sock"
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		_ = conn.Close()
+	}()
+
+	cfg := TransportConfig{Type: "uds", Address: socketPath}
+	logger := NewLogger(LoggingConfig{Level: "error"})
+
+	transport, err := NewUDSTransport(cfg, logger)
+	if err != nil {
+		t.Fatalf("failed to create transport: %v", err)
+	}
+	defer func() { _ = transport.Close() }()
+
+	_ = listener.Close()
+	transport.healthy = false
+
+	req, _ := protocol.NewRequest(1, "test", nil)
+	_, err = transport.Call(context.Background(), req)
+	if err == nil {
+		t.Error("expected reconnect error")
+	}
+}
+
+func TestUDSTransport_PingFail(t *testing.T) {
+	requireUnixSocket(t)
+	socketPath := "/tmp/ping-fail.sock"
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+		_ = conn.Close()
+	}()
+
+	cfg := TransportConfig{
+		Type:    "uds",
+		Address: socketPath,
+		Options: map[string]interface{}{
+			"idle_timeout": 1 * time.Nanosecond,
+		},
+	}
+	logger := NewLogger(LoggingConfig{Level: "error"})
+
+	transport, err := NewUDSTransport(cfg, logger)
+	if err != nil {
+		t.Fatalf("failed to create transport: %v", err)
+	}
+	defer func() { _ = transport.Close() }()
+
+	_ = listener.Close()
+	time.Sleep(10 * time.Millisecond)
+
+	if transport.IsHealthy() {
+		t.Error("expected unhealthy after ping failure")
+	}
+}
+
 func TestUDSTransport_DoubleClose(t *testing.T) {
 	requireUnixSocket(t)
 	tmpDir := t.TempDir()
