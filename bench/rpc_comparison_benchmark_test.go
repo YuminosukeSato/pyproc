@@ -97,7 +97,7 @@ func stopPythonServers() {
 	for name, cmd := range pythonServers {
 		if cmd != nil && cmd.Process != nil {
 			// Try graceful shutdown first
-			cmd.Process.Signal(os.Interrupt)
+			_ = cmd.Process.Signal(os.Interrupt)
 
 			// Wait a bit for graceful shutdown
 			done := make(chan error, 1)
@@ -110,7 +110,7 @@ func stopPythonServers() {
 				// Process exited gracefully
 			case <-time.After(2 * time.Second):
 				// Force kill if not exited
-				cmd.Process.Kill()
+				_ = cmd.Process.Kill()
 			}
 
 			fmt.Printf("Stopped %s server\n", name)
@@ -126,7 +126,7 @@ func stopPythonServers() {
 	}
 
 	for _, socket := range sockets {
-		os.Remove(socket)
+		_ = os.Remove(socket)
 	}
 }
 
@@ -189,13 +189,13 @@ func BenchmarkRPCProtocols(b *testing.B) {
 					b.Skipf("Failed to connect to %s: %v", clientConfig.name, err)
 					return
 				}
-				defer clientConfig.client.Close()
+				defer func() { _ = clientConfig.client.Close() }()
 
 				// Warmup
 				ctx := context.Background()
 				for i := 0; i < 100; i++ {
 					var result map[string]interface{}
-					clientConfig.client.Call(ctx, payload.Method, payload.Data, &result)
+					_ = clientConfig.client.Call(ctx, payload.Method, payload.Data, &result)
 				}
 
 				// Reset timer after warmup
@@ -250,13 +250,13 @@ func BenchmarkRPCLatency(b *testing.B) {
 				b.Skipf("Failed to connect to %s: %v", clientConfig.name, err)
 				return
 			}
-			defer clientConfig.client.Close()
+			defer func() { _ = clientConfig.client.Close() }()
 
 			// Warmup
 			ctx := context.Background()
 			for i := 0; i < 100; i++ {
 				var result map[string]interface{}
-				clientConfig.client.Call(ctx, payload.Method, payload.Data, &result)
+				_ = clientConfig.client.Call(ctx, payload.Method, payload.Data, &result)
 			}
 
 			// Collect latency measurements
@@ -322,7 +322,7 @@ func BenchmarkRPCParallel(b *testing.B) {
 				b.Skipf("Failed to connect to %s: %v", clientConfig.name, err)
 				return
 			}
-			testClient.Close()
+			_ = testClient.Close()
 
 			b.ResetTimer()
 
@@ -332,7 +332,7 @@ func BenchmarkRPCParallel(b *testing.B) {
 				if err := client.Connect(clientConfig.socket); err != nil {
 					b.Fatalf("Failed to connect: %v", err)
 				}
-				defer client.Close()
+				defer func() { _ = client.Close() }()
 
 				ctx := context.Background()
 				var result map[string]interface{}

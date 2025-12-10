@@ -12,7 +12,7 @@ import (
 // BenchmarkWorker benchmarks single worker performance
 func BenchmarkWorker(b *testing.B) {
 	worker := createTestWorker(b, "/tmp/bench-single")
-	defer worker.Stop()
+	defer func() { _ = worker.Stop() }()
 
 	ctx := context.Background()
 	req := map[string]interface{}{"value": 42}
@@ -35,7 +35,7 @@ func BenchmarkPoolOld(b *testing.B) {
 	for _, numWorkers := range workerCounts {
 		b.Run(fmt.Sprintf("Workers-%d", numWorkers), func(b *testing.B) {
 			pool := createTestPool(b, numWorkers, fmt.Sprintf("/tmp/bench-pool-%d", numWorkers))
-			defer pool.Shutdown(context.Background())
+			defer func() { _ = pool.Shutdown(context.Background()) }()
 
 			ctx := context.Background()
 			req := map[string]interface{}{"value": 42}
@@ -58,7 +58,7 @@ func BenchmarkConcurrentRequests(b *testing.B) {
 	for _, concurrency := range concurrencyLevels {
 		b.Run(fmt.Sprintf("Concurrency-%d", concurrency), func(b *testing.B) {
 			pool := createTestPool(b, 4, fmt.Sprintf("/tmp/bench-concurrent-%d", concurrency))
-			defer pool.Shutdown(context.Background())
+			defer func() { _ = pool.Shutdown(context.Background()) }()
 
 			ctx := context.Background()
 			req := map[string]interface{}{"value": 42}
@@ -83,7 +83,7 @@ func BenchmarkPayloadSize(b *testing.B) {
 	for _, size := range sizes {
 		b.Run(fmt.Sprintf("Size-%d", size), func(b *testing.B) {
 			pool := createTestPool(b, 2, fmt.Sprintf("/tmp/bench-payload-%d", size))
-			defer pool.Shutdown(context.Background())
+			defer func() { _ = pool.Shutdown(context.Background()) }()
 
 			ctx := context.Background()
 			data := make([]int, size)
@@ -138,7 +138,7 @@ func BenchmarkCodecs(b *testing.B) {
 			if err := pool.Start(ctx); err != nil {
 				b.Fatal(err)
 			}
-			defer pool.Shutdown(context.Background())
+			defer func() { _ = pool.Shutdown(context.Background()) }()
 
 			req := map[string]interface{}{"value": 42}
 			var resp map[string]interface{}
@@ -163,7 +163,7 @@ func BenchmarkTypedAPI(b *testing.B) {
 	}
 
 	pool := createTestPool(b, 2, "/tmp/bench-typed")
-	defer pool.Shutdown(context.Background())
+	defer func() { _ = pool.Shutdown(context.Background()) }()
 
 	ctx := context.Background()
 	req := Request{Value: 42}
@@ -180,7 +180,7 @@ func BenchmarkTypedAPI(b *testing.B) {
 // BenchmarkLatencyPercentiles measures latency percentiles
 func BenchmarkLatencyPercentiles(b *testing.B) {
 	pool := createTestPool(b, 4, "/tmp/bench-latency")
-	defer pool.Shutdown(context.Background())
+	defer func() { _ = pool.Shutdown(context.Background()) }()
 
 	ctx := context.Background()
 	req := map[string]interface{}{"value": 42}
