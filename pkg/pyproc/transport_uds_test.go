@@ -169,3 +169,13 @@ func TestUDSTransport_DoubleClose(t *testing.T) {
 		t.Errorf("second close should succeed (no-op): %v", err2)
 	}
 }
+
+func TestUDSTransport_IsHealthy_NilConn(t *testing.T) {
+	transport := &UDSTransport{
+		conn:   nil,
+		closed: false,
+	}
+	if transport.IsHealthy() {
+		t.Error("expected unhealthy for nil connection")
+	}
+}
