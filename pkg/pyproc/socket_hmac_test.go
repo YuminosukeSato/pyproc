@@ -87,40 +87,47 @@ func TestHMACAuthClientServer(t *testing.T) {
 	socketPath := filepath.Join(tmpDir, "hmac-test.sock")
 
 	secret := []byte("shared-secret-key-for-testing")
-	serverAuth := NewHMACAuth(secret)
-	clientAuth := NewHMACAuth(secret)
-
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		t.Fatalf("failed to create listener: %v", err)
 	}
-	defer func() { _ = listener.Close() }()
+	hmacListener := NewHMACListener(listener, secret)
+	defer func() { _ = hmacListener.Close() }()
 
-	serverErr := make(chan error, 1)
+	connCh := make(chan net.Conn, 1)
+	errCh := make(chan error, 1)
 	go func() {
-		conn, err := listener.Accept()
-		if err != nil {
-			serverErr <- err
-			return
-		}
-		defer func() { _ = conn.Close() }()
-		serverErr <- serverAuth.AuthenticateServer(conn)
+		conn, err := hmacListener.Accept()
+		connCh <- conn
+		errCh <- err
 	}()
 
-	clientConn, err := net.Dial("unix", socketPath)
+	clientConn, err := DialSecure("unix", socketPath, secret)
 	if err != nil {
-		t.Fatalf("failed to connect: %v", err)
+		t.Fatalf("DialSecure failed: %v", err)
 	}
 	defer func() { _ = clientConn.Close() }()
 
-	err = clientAuth.AuthenticateClient(clientConn)
-	if err != nil {
-		t.Errorf("client authentication failed: %v", err)
+	serverConn := <-connCh
+	if err := <-errCh; err != nil {
+		t.Fatalf("Accept failed: %v", err)
+	}
+	if serverConn == nil {
+		t.Fatal("expected server connection")
 	}
 
-	if err := <-serverErr; err != nil {
-		t.Errorf("server authentication failed: %v", err)
+	payload := []byte{1}
+	if _, err := serverConn.Write(payload); err != nil {
+		t.Fatalf("server write failed: %v", err)
 	}
+	buf := make([]byte, 1)
+	if _, err := clientConn.Read(buf); err != nil {
+		t.Fatalf("client read failed: %v", err)
+	}
+	if !bytes.Equal(buf, payload) {
+		t.Fatalf("unexpected payload: %v", buf)
+	}
+	_ = serverConn.Close()
 }
 
 func TestHMACAuthWrongSecret(t *testing.T) {
@@ -128,40 +135,24 @@ func TestHMACAuthWrongSecret(t *testing.T) {
 	tmpDir := t.TempDir()
 	socketPath := filepath.Join(tmpDir, "w.sock")
 
-	serverAuth := NewHMACAuth([]byte("server-secret"))
-	clientAuth := NewHMACAuth([]byte("wrong-client-secret"))
-
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		t.Fatalf("failed to create listener: %v", err)
 	}
-	defer func() { _ = listener.Close() }()
-
-	serverErr := make(chan error, 1)
+	hmacListener := NewHMACListener(listener, []byte("server-secret"))
+	errCh := make(chan error, 1)
 	go func() {
-		conn, err := listener.Accept()
-		if err != nil {
-			serverErr <- err
-			return
-		}
-		defer func() { _ = conn.Close() }()
-		serverErr <- serverAuth.AuthenticateServer(conn)
+		_, err := hmacListener.Accept()
+		errCh <- err
 	}()
 
-	clientConn, err := net.Dial("unix", socketPath)
-	if err != nil {
-		t.Fatalf("failed to connect: %v", err)
+	if _, err := DialSecure("unix", socketPath, []byte("wrong-client-secret")); err == nil {
+		t.Fatal("expected DialSecure to fail with wrong secret")
 	}
-	defer func() { _ = clientConn.Close() }()
-
-	err = clientAuth.AuthenticateClient(clientConn)
-	if err == nil {
-		t.Error("expected authentication to fail with wrong secret")
-	}
-
-	if err := <-serverErr; err == nil {
+	if err := <-errCh; err == nil {
 		t.Error("expected server to detect authentication failure")
 	}
+	_ = hmacListener.Close()
 }
 
 func TestNewHMACListener(t *testing.T) {
@@ -200,61 +191,4 @@ func TestSecureConnIsAuthenticated(t *testing.T) {
 	if conn.IsAuthenticated() {
 		t.Error("expected IsAuthenticated to return false")
 	}
-}
-
-func TestHMACListenerAccept(t *testing.T) {
-	requireUnixSocket(t)
-	path := filepath.Join(t.TempDir(), "accept.sock")
-	listener, err := net.Listen("unix", path)
-	if err != nil {
-		t.Fatalf("listen failed: %v", err)
-	}
-	hmacListener := NewHMACListener(listener, []byte("accept-secret"))
-	defer func() { _ = hmacListener.Close() }()
-
-	connCh := make(chan net.Conn, 1)
-	errCh := make(chan error, 1)
-	go func() {
-		conn, err := hmacListener.Accept()
-		connCh <- conn
-		errCh <- err
-	}()
-
-	clientConn, err := DialSecure("unix", path, []byte("accept-secret"))
-	if err != nil {
-		t.Fatalf("DialSecure failed: %v", err)
-	}
-	defer func() { _ = clientConn.Close() }()
-
-	serverConn := <-connCh
-	if err := <-errCh; err != nil {
-		t.Fatalf("Accept failed: %v", err)
-	}
-	if serverConn == nil {
-		t.Fatal("expected server connection")
-	}
-	_ = serverConn.Close()
-}
-
-func TestDialSecureWrongSecret(t *testing.T) {
-	requireUnixSocket(t)
-	path := filepath.Join(t.TempDir(), "dial-fail.sock")
-	listener, err := net.Listen("unix", path)
-	if err != nil {
-		t.Fatalf("listen failed: %v", err)
-	}
-	hmacListener := NewHMACListener(listener, []byte("server-secret"))
-	errCh := make(chan error, 1)
-	go func() {
-		_, err := hmacListener.Accept()
-		errCh <- err
-	}()
-
-	if _, err := DialSecure("unix", path, []byte("wrong-secret")); err == nil {
-		t.Fatal("expected DialSecure to fail with wrong secret")
-	}
-	if err := <-errCh; err == nil {
-		t.Fatalf("expected server authentication failure")
-	}
-	_ = hmacListener.Close()
 }
