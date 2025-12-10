@@ -10,6 +10,43 @@ import (
 	"github.com/YuminosukeSato/pyproc/internal/protocol"
 )
 
+func TestNewMultiplexedTransport_EmptyAddress(t *testing.T) {
+	cfg := TransportConfig{Type: "multiplexed", Address: ""}
+	logger := NewLogger(LoggingConfig{Level: "error"})
+	_, err := NewMultiplexedTransport(cfg, logger)
+	if err == nil {
+		t.Error("expected error for empty address")
+	}
+}
+
+func TestNewMultiplexedTransport_NonExistentSocket(t *testing.T) {
+	cfg := TransportConfig{
+		Type:    "multiplexed",
+		Address: "/tmp/nonexistent-mux-12345.sock",
+	}
+	logger := NewLogger(LoggingConfig{Level: "error"})
+	_, err := NewMultiplexedTransport(cfg, logger)
+	if err == nil {
+		t.Error("expected error for non-existent socket")
+	}
+}
+
+func TestMultiplexedTransport_IsHealthy_Closed(t *testing.T) {
+	transport := &MultiplexedTransport{}
+	transport.closed.Store(true)
+	if transport.IsHealthy() {
+		t.Error("expected unhealthy for closed transport")
+	}
+}
+
+func TestMultiplexedTransport_IsHealthy_NilConn(t *testing.T) {
+	transport := &MultiplexedTransport{conn: nil}
+	transport.closed.Store(false)
+	if transport.IsHealthy() {
+		t.Error("expected unhealthy for nil connection")
+	}
+}
+
 func TestMultiplexedTransport(t *testing.T) {
 	t.Skip("Skipping multiplexed transport test - needs investigation")
 	t.Run("Concurrent Requests", func(t *testing.T) {

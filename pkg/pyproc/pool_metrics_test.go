@@ -54,3 +54,48 @@ func TestPoolWithMetricsReset(t *testing.T) {
 		t.Fatalf("timestamp should be set in snapshot")
 	}
 }
+
+func TestNewPoolWithMetrics_InvalidConfig(t *testing.T) {
+	opts := PoolOptions{Config: PoolConfig{Workers: 0}}
+	_, err := NewPoolWithMetrics(opts, nil)
+	if err == nil {
+		t.Error("expected error for zero workers")
+	}
+}
+
+func TestNewPoolWithMetrics_Valid(t *testing.T) {
+	opts := PoolOptions{
+		Config:       PoolConfig{Workers: 1, MaxInFlight: 5},
+		WorkerConfig: WorkerConfig{SocketPath: "/tmp/test-metrics.sock"},
+	}
+	pm, err := NewPoolWithMetrics(opts, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pm.Pool == nil || pm.metrics == nil {
+		t.Error("pool or metrics is nil")
+	}
+}
+
+func TestRecordLatency_Empty(t *testing.T) {
+	metrics := NewPoolMetrics()
+	p50 := metrics.GetLatencyPercentile(50)
+	if p50 != 0 {
+		t.Errorf("expected 0 for empty latencies, got %v", p50)
+	}
+}
+
+func TestRecordLatency_Percentiles(t *testing.T) {
+	metrics := NewPoolMetrics()
+	for i := 1; i <= 100; i++ {
+		metrics.RecordLatency(time.Duration(i) * time.Millisecond)
+	}
+	p50 := metrics.GetLatencyPercentile(50)
+	p99 := metrics.GetLatencyPercentile(99)
+	if p50 < 40*time.Millisecond || p50 > 60*time.Millisecond {
+		t.Errorf("p50 out of range: %v", p50)
+	}
+	if p99 < 90*time.Millisecond {
+		t.Errorf("p99 too low: %v", p99)
+	}
+}

@@ -11,10 +11,6 @@ import (
 func TestNewHMACAuth(t *testing.T) {
 	secret := []byte("test-secret-key")
 	auth := NewHMACAuth(secret)
-
-	if auth == nil {
-		t.Fatal("expected non-nil HMACAuth")
-	}
 	if !bytes.Equal(auth.secret, secret) {
 		t.Error("secret mismatch")
 	}
@@ -177,10 +173,6 @@ func TestNewHMACListener(t *testing.T) {
 
 	secret := []byte("test-secret")
 	hmacListener := NewHMACListener(listener, secret)
-
-	if hmacListener == nil {
-		t.Fatal("expected non-nil HMACListener")
-	}
 	if hmacListener.auth == nil {
 		t.Error("expected non-nil auth in HMACListener")
 	}
@@ -200,5 +192,86 @@ func TestSecureConnIsAuthenticated(t *testing.T) {
 	conn.authenticated = false
 	if conn.IsAuthenticated() {
 		t.Error("expected IsAuthenticated to return false")
+	}
+}
+
+func TestHMACListener_Accept(t *testing.T) {
+	requireUnixSocket(t)
+	socketPath := "/tmp/hmac-accept-test.sock"
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	defer func() { _ = listener.Close() }()
+
+	secret := []byte("test-secret-12345")
+	hmacListener := NewHMACListener(listener, secret)
+
+	acceptErr := make(chan error, 1)
+	go func() {
+		conn, err := hmacListener.Accept()
+		if err != nil {
+			acceptErr <- err
+			return
+		}
+		_ = conn.Close()
+		acceptErr <- nil
+	}()
+
+	clientAuth := NewHMACAuth(secret)
+	clientConn, err := net.Dial("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to connect: %v", err)
+	}
+	defer func() { _ = clientConn.Close() }()
+
+	err = clientAuth.AuthenticateClient(clientConn)
+	if err != nil {
+		t.Errorf("client auth failed: %v", err)
+	}
+
+	if err := <-acceptErr; err != nil {
+		t.Errorf("Accept failed: %v", err)
+	}
+}
+
+func TestDialSecure(t *testing.T) {
+	requireUnixSocket(t)
+	socketPath := "/tmp/dial-secure-test.sock"
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	defer func() { _ = listener.Close() }()
+
+	secret := []byte("dial-secure-secret")
+
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		serverAuth := NewHMACAuth(secret)
+		_ = serverAuth.AuthenticateServer(conn)
+	}()
+
+	secureConn, err := DialSecure("unix", socketPath, secret)
+	if err != nil {
+		t.Fatalf("DialSecure failed: %v", err)
+	}
+	defer func() { _ = secureConn.Close() }()
+
+	if !secureConn.IsAuthenticated() {
+		t.Error("expected authenticated connection")
+	}
+}
+
+func TestDialSecure_ConnectionError(t *testing.T) {
+	_, err := DialSecure("unix", "/tmp/nonexistent-socket.sock", []byte("secret"))
+	if err == nil {
+		t.Error("expected error for nonexistent socket")
 	}
 }

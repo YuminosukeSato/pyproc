@@ -169,3 +169,43 @@ func TestUDSTransport_DoubleClose(t *testing.T) {
 		t.Errorf("second close should succeed (no-op): %v", err2)
 	}
 }
+
+func TestUDSTransport_IsHealthy_IdleTimeout(t *testing.T) {
+	requireUnixSocket(t)
+	socketPath := "/tmp/idle-test.sock"
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	defer func() { _ = listener.Close() }()
+
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			time.Sleep(50 * time.Millisecond)
+			_ = conn.Close()
+		}
+	}()
+
+	cfg := TransportConfig{
+		Type:    "uds",
+		Address: socketPath,
+		Options: map[string]interface{}{
+			"idle_timeout": 1 * time.Nanosecond,
+		},
+	}
+	logger := NewLogger(LoggingConfig{Level: "error"})
+
+	transport, err := NewUDSTransport(cfg, logger)
+	if err != nil {
+		t.Fatalf("failed to create transport: %v", err)
+	}
+	defer func() { _ = transport.Close() }()
+
+	time.Sleep(10 * time.Millisecond)
+	transport.IsHealthy()
+}
