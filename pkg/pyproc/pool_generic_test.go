@@ -381,3 +381,117 @@ func TestTypedAPI_ResponseTypeMismatch(t *testing.T) {
 		t.Logf("Got expected error: %v", errMsg)
 	}
 }
+
+func TestTypedPool_StartShutdownHealth(t *testing.T) {
+	requireUnixSocket(t)
+
+	opts := PoolOptions{
+		Config: PoolConfig{Workers: 1, MaxInFlight: 5},
+		WorkerConfig: WorkerConfig{
+			SocketPath:   "/tmp/test-typed-pool-lifecycle.sock",
+			PythonExec:   "python3",
+			WorkerScript: "../../examples/basic/worker.py",
+		},
+	}
+
+	logger := NewLogger(LoggingConfig{Level: "error"})
+	pool, err := NewPool(opts, logger)
+	if err != nil {
+		t.Fatalf("failed to create pool: %v", err)
+	}
+
+	typedPool := NewTypedPool[PredictRequest, PredictResponse](pool)
+
+	ctx := context.Background()
+	if err := typedPool.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+
+	health := typedPool.Health()
+	if health.TotalWorkers != 1 {
+		t.Errorf("expected 1 total worker, got %d", health.TotalWorkers)
+	}
+
+	if err := typedPool.Shutdown(ctx); err != nil {
+		t.Errorf("Shutdown failed: %v", err)
+	}
+}
+
+func TestTypedWorkerClient_Call(t *testing.T) {
+	requireUnixSocket(t)
+
+	opts := PoolOptions{
+		Config: PoolConfig{Workers: 1, MaxInFlight: 5},
+		WorkerConfig: WorkerConfig{
+			SocketPath:   "/tmp/test-typed-worker-client.sock",
+			PythonExec:   "python3",
+			WorkerScript: "../../examples/basic/worker.py",
+		},
+	}
+
+	logger := NewLogger(LoggingConfig{Level: "error"})
+	pool, err := NewPool(opts, logger)
+	if err != nil {
+		t.Fatalf("failed to create pool: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := pool.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer func() { _ = pool.Shutdown(ctx) }()
+
+	time.Sleep(100 * time.Millisecond)
+
+	client := NewTypedWorkerClient[PredictRequest, PredictResponse](pool, "predict")
+	input := PredictRequest{Value: 21}
+	output, err := client.Call(ctx, input)
+	if err != nil {
+		t.Fatalf("Call failed: %v", err)
+	}
+
+	expected := 42.0
+	if output.Result != expected {
+		t.Errorf("expected %v, got %v", expected, output.Result)
+	}
+}
+
+func TestCallTypedWithTransport(t *testing.T) {
+	requireUnixSocket(t)
+
+	opts := PoolOptions{
+		Config: PoolConfig{Workers: 1, MaxInFlight: 5},
+		WorkerConfig: WorkerConfig{
+			SocketPath:   "/tmp/test-call-typed-transport.sock",
+			PythonExec:   "python3",
+			WorkerScript: "../../examples/basic/worker.py",
+		},
+	}
+
+	logger := NewLogger(LoggingConfig{Level: "error"})
+	pool, err := NewPoolWithTransport(opts, logger)
+	if err != nil {
+		t.Fatalf("failed to create pool: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := pool.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer func() { _ = pool.Shutdown(ctx) }()
+
+	time.Sleep(100 * time.Millisecond)
+
+	input := PredictRequest{Value: 50}
+	output, err := CallTypedWithTransport[PredictRequest, PredictResponse](ctx, pool, "predict", input)
+	if err != nil {
+		t.Fatalf("CallTypedWithTransport failed: %v", err)
+	}
+
+	expected := 100.0
+	if output.Result != expected {
+		t.Errorf("expected %v, got %v", expected, output.Result)
+	}
+}
