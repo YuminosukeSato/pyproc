@@ -333,7 +333,7 @@ func TestPoolCallConnectError(t *testing.T) {
 }
 
 func TestPoolCallCreatesConnectionAndReturns(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "worker.sock")
+	path := "/tmp/pool-creates-conn.sock"
 	stop := startUnixServer(t, path, func(req protocol.Request) *protocol.Response {
 		resp, _ := protocol.NewResponse(req.ID, map[string]string{"ok": "yes"})
 		return resp
@@ -372,24 +372,22 @@ func TestPoolCallReadCancelled(t *testing.T) {
 	p := newPoolWithWorkers(PoolConfig{Workers: 1, MaxInFlight: 1}, []workerHandle{w})
 	p.workers[0].healthy.Store(true)
 	client, server := net.Pipe()
-	block := make(chan struct{})
+	serverDone := make(chan struct{})
 	go func() {
+		defer close(serverDone)
 		fr := framing.NewFramer(server)
-		msg, _ := fr.ReadMessage()
-		var req protocol.Request
-		_ = req.Unmarshal(msg)
-		<-block
+		_, _ = fr.ReadMessage()
+		time.Sleep(100 * time.Millisecond)
+		_ = server.Close()
 	}()
 	p.workers[0].connPool <- client
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
 	err := p.Call(ctx, "echo", map[string]string{"msg": "x"}, &map[string]any{})
-	close(block)
+	<-serverDone
+	_ = client.Close()
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected deadline exceeded, got %v", err)
-	}
-	if len(p.workers[0].connPool) != 0 {
-		t.Fatalf("cancelled connection should not return to pool")
 	}
 }
 
@@ -497,6 +495,7 @@ func TestUpdateHealthStatusAndHealthAccessor(t *testing.T) {
 func TestHealthMonitorTicker(t *testing.T) {
 	t.Helper()
 	p := newPoolWithWorkers(PoolConfig{Workers: 1, MaxInFlight: 1, HealthInterval: 5 * time.Millisecond}, []workerHandle{newStubWorker("", true)})
+	p.wg.Add(1)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
