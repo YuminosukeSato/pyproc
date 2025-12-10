@@ -1,6 +1,7 @@
 package pyproc
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -76,5 +77,45 @@ func TestNewPoolWithMetrics_Valid(t *testing.T) {
 	}
 	if pm.Pool == nil || pm.metrics == nil {
 		t.Error("pool or metrics is nil")
+	}
+}
+
+func TestPoolWithMetrics_Call(t *testing.T) {
+	requireUnixSocket(t)
+
+	opts := PoolOptions{
+		Config: PoolConfig{Workers: 1, MaxInFlight: 5},
+		WorkerConfig: WorkerConfig{
+			SocketPath:   "/tmp/test-pool-metrics-call.sock",
+			PythonExec:   "python3",
+			WorkerScript: "../../examples/basic/worker.py",
+		},
+	}
+
+	pm, err := NewPoolWithMetrics(opts, nil)
+	if err != nil {
+		t.Fatalf("failed to create pool: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := pm.Start(ctx); err != nil {
+		t.Fatalf("failed to start pool: %v", err)
+	}
+	defer func() { _ = pm.Shutdown(ctx) }()
+
+	time.Sleep(100 * time.Millisecond)
+
+	var output map[string]interface{}
+	err = pm.Call(ctx, "predict", map[string]interface{}{"value": 10}, &output)
+	if err != nil {
+		t.Fatalf("Call failed: %v", err)
+	}
+
+	snap := pm.GetMetrics()
+	if snap.RequestsTotal != 1 {
+		t.Errorf("expected 1 total request, got %d", snap.RequestsTotal)
+	}
+	if snap.RequestsSucceeded != 1 {
+		t.Errorf("expected 1 succeeded request, got %d", snap.RequestsSucceeded)
 	}
 }
