@@ -2,6 +2,7 @@ package pyproc
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -508,4 +509,86 @@ func TestCallTypedWithTransport(t *testing.T) {
 
 func TestTypedWorkerClient_BatchCall(t *testing.T) {
 	t.Skip("Skipping flaky batch call test - Pool.Call blocks with concurrent requests")
+}
+
+func TestTypedWorkerClient_BatchCallTimeout(t *testing.T) {
+	requireUnixSocket(t)
+
+	opts := PoolOptions{
+		Config: PoolConfig{Workers: 1, MaxInFlight: 2},
+		WorkerConfig: WorkerConfig{
+			SocketPath:   "/tmp/test-typed-batch-timeout.sock",
+			PythonExec:   "python3",
+			WorkerScript: "../../examples/basic/worker.py",
+		},
+	}
+
+	logger := NewLogger(LoggingConfig{Level: "error"})
+	pool, err := NewPool(opts, logger)
+	if err != nil {
+		t.Fatalf("failed to create pool: %v", err)
+	}
+
+	ctx := context.Background()
+	if err := pool.Start(ctx); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+	defer func() { _ = pool.Shutdown(ctx) }()
+
+	// Warm up to ensure worker is ready.
+	warmCtx, warmCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer warmCancel()
+	var warmOut PredictResponse
+	if err := pool.Call(warmCtx, "predict", PredictRequest{Value: 1}, &warmOut); err != nil {
+		t.Fatalf("warm-up call failed: %v", err)
+	}
+
+	type SlowRequest struct {
+		Value float64 `json:"value"`
+		Sleep float64 `json:"sleep"`
+	}
+	type SlowResponse struct {
+		Result   float64 `json:"result"`
+		Duration float64 `json:"duration"`
+	}
+
+	client := NewTypedWorkerClient[SlowRequest, SlowResponse](pool, "slow_process")
+	inputs := []SlowRequest{
+		{Value: 1, Sleep: 0.2},
+		{Value: 2, Sleep: 0.2},
+	}
+
+	batchCtx, batchCancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer batchCancel()
+
+	done := make(chan struct{})
+	var results []SlowResponse
+	var batchErrors []error
+	go func() {
+		results, batchErrors = client.BatchCall(batchCtx, inputs)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("BatchCall hung; expected to return after ctx deadline")
+	}
+
+	if len(results) != len(inputs) || len(batchErrors) != len(inputs) {
+		t.Fatalf("unexpected result sizes: results=%d errors=%d", len(results), len(batchErrors))
+	}
+
+	for i, err := range batchErrors {
+		if err == nil {
+			t.Fatalf("expected timeout error at index %d", i)
+		}
+		var timeoutErr *TimeoutError
+		if !errors.As(err, &timeoutErr) {
+			t.Fatalf("expected TimeoutError, got %T (%v)", err, err)
+		}
+		if timeoutErr.Kind != TimeoutKindContext {
+			t.Fatalf("unexpected TimeoutError.Kind: got %s, want %s", timeoutErr.Kind, TimeoutKindContext)
+		}
+	}
 }

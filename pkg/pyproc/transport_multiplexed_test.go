@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -12,12 +14,15 @@ import (
 )
 
 func TestMultiplexedTransport(t *testing.T) {
-	t.Skip("Skipping multiplexed transport test - needs investigation")
+	requireUnixSocket(t)
 	t.Run("Concurrent Requests", func(t *testing.T) {
 		// Start a test worker
+		tmpDir := filepath.Join("/tmp", "pyproc")
+		_ = os.MkdirAll(tmpDir, 0o755)
+		socketPath := filepath.Join(tmpDir, fmt.Sprintf("mux-%d.sock", time.Now().UnixNano()))
 		cfg := WorkerConfig{
 			ID:           "test-worker",
-			SocketPath:   "/tmp/test-multiplex.sock",
+			SocketPath:   socketPath,
 			PythonExec:   "python3",
 			WorkerScript: "../../examples/basic/worker.py",
 			StartTimeout: 5 * time.Second,
@@ -32,9 +37,6 @@ func TestMultiplexedTransport(t *testing.T) {
 		}
 		defer func() { _ = worker.Stop() }()
 
-		// Give worker time to stabilize
-		time.Sleep(100 * time.Millisecond)
-
 		// Create multiplexed transport
 		transportConfig := TransportConfig{
 			Type:    "multiplexed",
@@ -44,16 +46,15 @@ func TestMultiplexedTransport(t *testing.T) {
 			},
 		}
 
-		transport, err := NewMultiplexedTransport(transportConfig, logger)
-		if err != nil {
-			t.Fatalf("Failed to create transport: %v", err)
-		}
+		transport := newMultiplexedTransportWithRetry(t, transportConfig, logger, 2*time.Second)
 		defer func() { _ = transport.Close() }()
 
 		// Send multiple concurrent requests
 		const numRequests = 10
 		var wg sync.WaitGroup
 		errors := make(chan error, numRequests)
+		ready := make(chan struct{}, numRequests)
+		start := make(chan struct{})
 
 		for i := 0; i < numRequests; i++ {
 			wg.Add(1)
@@ -68,6 +69,9 @@ func TestMultiplexedTransport(t *testing.T) {
 					errors <- err
 					return
 				}
+
+				ready <- struct{}{}
+				<-start
 
 				// Send request
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -98,6 +102,11 @@ func TestMultiplexedTransport(t *testing.T) {
 				}
 			}(i)
 		}
+
+		for i := 0; i < numRequests; i++ {
+			<-ready
+		}
+		close(start)
 
 		// Wait for all requests to complete
 		wg.Wait()
@@ -188,6 +197,22 @@ func TestMultiplexedTransport(t *testing.T) {
 			t.Fatalf("Response not OK: %v", resp.Error())
 		}
 	})
+}
+
+func newMultiplexedTransportWithRetry(t *testing.T, cfg TransportConfig, logger *Logger, timeout time.Duration) *MultiplexedTransport {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	for {
+		transport, err := NewMultiplexedTransport(cfg, logger)
+		if err == nil {
+			return transport
+		}
+		if ctx.Err() != nil {
+			t.Fatalf("Failed to create transport: %v", err)
+		}
+		_ = sleepWithCtx(ctx, 10*time.Millisecond)
+	}
 }
 
 func TestNewMultiplexedTransport_EmptyAddress(t *testing.T) {

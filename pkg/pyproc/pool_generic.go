@@ -3,6 +3,7 @@ package pyproc
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // CallTyped is a type-safe wrapper for Pool.Call using Go generics.
@@ -195,6 +196,10 @@ func (tc *TypedWorkerClient[TIn, TOut]) Call(ctx context.Context, input TIn) (TO
 func (tc *TypedWorkerClient[TIn, TOut]) BatchCall(ctx context.Context, inputs []TIn) ([]TOut, []error) {
 	results := make([]TOut, len(inputs))
 	errors := make([]error, len(inputs))
+	if len(inputs) == 0 {
+		return results, errors
+	}
+	start := time.Now()
 
 	// Use goroutines for parallel execution
 	type result struct {
@@ -212,11 +217,27 @@ func (tc *TypedWorkerClient[TIn, TOut]) BatchCall(ctx context.Context, inputs []
 		}(i, input)
 	}
 
-	// Collect results
-	for i := 0; i < len(inputs); i++ {
-		res := <-resultCh
-		results[res.index] = res.output
-		errors[res.index] = res.err
+	// Collect results, but stop waiting if ctx is done.
+	completed := make([]bool, len(inputs))
+	remaining := len(inputs)
+	for remaining > 0 {
+		select {
+		case res := <-resultCh:
+			if !completed[res.index] {
+				results[res.index] = res.output
+				errors[res.index] = res.err
+				completed[res.index] = true
+				remaining--
+			}
+		case <-ctx.Done():
+			timeoutErr := timeoutErrorForContext(ctx, start)
+			for i := range inputs {
+				if !completed[i] {
+					errors[i] = timeoutErr
+				}
+			}
+			return results, errors
+		}
 	}
 
 	return results, errors

@@ -23,6 +23,7 @@ type MultiplexedTransport struct {
 	requestID atomic.Uint64
 	pending   map[uint64]*pendingRequest
 	mu        sync.RWMutex
+	writeMu   sync.Mutex
 
 	// Connection state
 	closed    atomic.Bool
@@ -35,10 +36,22 @@ type MultiplexedTransport struct {
 
 // pendingRequest tracks an in-flight request
 type pendingRequest struct {
-	id         uint64
-	responseCh chan *protocol.Response
-	errCh      chan error
-	timer      *time.Timer
+	id          uint64
+	responseCh  chan *protocol.Response
+	errCh       chan error
+	cleanupOnce sync.Once
+}
+
+func (p *pendingRequest) cleanup(t *MultiplexedTransport) {
+	p.cleanupOnce.Do(func() {
+		t.mu.Lock()
+		delete(t.pending, p.id)
+		t.mu.Unlock()
+	})
+}
+
+var marshalRequest = func(req *protocol.Request) ([]byte, error) {
+	return req.Marshal()
 }
 
 // NewMultiplexedTransport creates a new multiplexed transport
@@ -80,7 +93,7 @@ func (t *MultiplexedTransport) connect() error {
 	}
 
 	t.conn = conn
-	t.framer = framing.NewEnhancedFramer(conn)
+	t.framer = framing.NewFramer(conn)
 
 	t.logger.Debug("multiplexed transport connected", "address", t.config.Address)
 	return nil
@@ -115,8 +128,10 @@ func (t *MultiplexedTransport) readLoop() {
 			continue
 		}
 
-		// Set the request ID from frame header
-		resp.ID = frame.Header.RequestID
+		// Prefer request ID from payload; fall back to frame header if present.
+		if resp.ID == 0 && frame.Header.RequestID != 0 {
+			resp.ID = frame.Header.RequestID
+		}
 
 		// Find pending request
 		t.mu.RLock()
@@ -131,37 +146,37 @@ func (t *MultiplexedTransport) readLoop() {
 		// Deliver response
 		select {
 		case pending.responseCh <- &resp:
-			// Response delivered
-		case <-pending.timer.C:
-			// Request already timed out
+		default:
+			// Caller may have already timed out or exited
 		}
-
-		// Clean up pending request
-		t.mu.Lock()
-		delete(t.pending, resp.ID)
-		t.mu.Unlock()
-		pending.timer.Stop()
 	}
 }
 
 // handleReadError handles errors from the read loop
 func (t *MultiplexedTransport) handleReadError(err error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	t.mu.RLock()
+	pendingList := make([]*pendingRequest, 0, len(t.pending))
+	for _, pending := range t.pending {
+		pendingList = append(pendingList, pending)
+	}
+	t.mu.RUnlock()
 
 	// Notify all pending requests of the error
-	for id, pending := range t.pending {
+	for _, pending := range pendingList {
 		select {
 		case pending.errCh <- fmt.Errorf("connection error: %w", err):
 		default:
 		}
-		pending.timer.Stop()
-		delete(t.pending, id)
+		pending.cleanup(t)
 	}
 
 	// Close the transport
 	t.closed.Store(true)
-	close(t.closeCh)
+	select {
+	case <-t.closeCh:
+	default:
+		close(t.closeCh)
+	}
 }
 
 // Call sends a request and receives a response
@@ -169,6 +184,7 @@ func (t *MultiplexedTransport) Call(ctx context.Context, req *protocol.Request) 
 	if t.closed.Load() {
 		return nil, fmt.Errorf("transport is closed")
 	}
+	start := time.Now()
 
 	// Generate request ID
 	requestID := t.requestID.Add(1)
@@ -181,36 +197,47 @@ func (t *MultiplexedTransport) Call(ctx context.Context, req *protocol.Request) 
 		errCh:      make(chan error, 1),
 	}
 
-	// Set timeout
-	timeout := 30 * time.Second
-	if deadline, ok := ctx.Deadline(); ok {
-		timeout = time.Until(deadline)
-	}
-	pending.timer = time.NewTimer(timeout)
-
 	// Register pending request
 	t.mu.Lock()
 	t.pending[requestID] = pending
 	t.mu.Unlock()
 
 	// Clean up on exit
-	defer func() {
-		pending.timer.Stop()
-		t.mu.Lock()
-		delete(t.pending, requestID)
-		t.mu.Unlock()
-	}()
+	defer pending.cleanup(t)
 
 	// Marshal request
-	reqData, err := req.Marshal()
+	reqData, err := marshalRequest(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	// Create and write frame
 	frame := framing.NewFrame(requestID, reqData)
-	if err := t.framer.WriteFrame(frame); err != nil {
+	select {
+	case <-ctx.Done():
+		return nil, timeoutErrorForContext(ctx, start)
+	default:
+	}
+
+	t.writeMu.Lock()
+	err = t.framer.WriteFrame(frame)
+	t.writeMu.Unlock()
+	if err != nil {
 		return nil, fmt.Errorf("failed to write frame: %w", err)
+	}
+
+	transportTimeout := 30 * time.Second
+	if timeoutVal, ok := t.config.Options["request_timeout"].(time.Duration); ok {
+		transportTimeout = timeoutVal
+	}
+	deadline, kind, hasDeadline := effectiveDeadline(ctx, start, nil, transportTimeout)
+	var timerCh <-chan time.Time
+	var timer *time.Timer
+	if hasDeadline && kind != TimeoutKindContext {
+		timeout := timeoutDuration(start, deadline)
+		timer = time.NewTimer(timeout)
+		timerCh = timer.C
+		defer timer.Stop()
 	}
 
 	// Wait for response
@@ -219,10 +246,13 @@ func (t *MultiplexedTransport) Call(ctx context.Context, req *protocol.Request) 
 		return resp, nil
 	case err := <-pending.errCh:
 		return nil, err
-	case <-pending.timer.C:
-		return nil, fmt.Errorf("request timeout after %v", timeout)
 	case <-ctx.Done():
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, newTimeoutError(TimeoutKindContext, timeoutDuration(start, deadline), context.DeadlineExceeded)
+		}
 		return nil, ctx.Err()
+	case <-timerCh:
+		return nil, newTimeoutError(kind, timeoutDuration(start, deadline), context.DeadlineExceeded)
 	}
 }
 
@@ -232,7 +262,11 @@ func (t *MultiplexedTransport) Close() error {
 
 	t.closeOnce.Do(func() {
 		t.closed.Store(true)
-		close(t.closeCh)
+		select {
+		case <-t.closeCh:
+		default:
+			close(t.closeCh)
+		}
 
 		// Close connection
 		if t.conn != nil {
@@ -243,16 +277,19 @@ func (t *MultiplexedTransport) Close() error {
 		t.readerWg.Wait()
 
 		// Clean up pending requests
-		t.mu.Lock()
-		for id, pending := range t.pending {
+		t.mu.RLock()
+		pendingList := make([]*pendingRequest, 0, len(t.pending))
+		for _, pending := range t.pending {
+			pendingList = append(pendingList, pending)
+		}
+		t.mu.RUnlock()
+		for _, pending := range pendingList {
 			select {
 			case pending.errCh <- fmt.Errorf("transport closed"):
 			default:
 			}
-			pending.timer.Stop()
-			delete(t.pending, id)
+			pending.cleanup(t)
 		}
-		t.mu.Unlock()
 	})
 
 	return closeErr
