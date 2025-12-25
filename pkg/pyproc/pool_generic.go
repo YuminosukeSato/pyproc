@@ -223,13 +223,12 @@ func (tc *TypedWorkerClient[TIn, TOut]) BatchCall(ctx context.Context, inputs []
 	for remaining > 0 {
 		select {
 		case res := <-resultCh:
-			if completed[res.index] {
-				continue
+			if !completed[res.index] {
+				results[res.index] = res.output
+				errors[res.index] = res.err
+				completed[res.index] = true
+				remaining--
 			}
-			results[res.index] = res.output
-			errors[res.index] = res.err
-			completed[res.index] = true
-			remaining--
 		case <-ctx.Done():
 			timeoutErr := timeoutErrorForContext(ctx, start)
 			for i := range inputs {

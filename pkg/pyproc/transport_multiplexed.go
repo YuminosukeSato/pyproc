@@ -50,6 +50,10 @@ func (p *pendingRequest) cleanup(t *MultiplexedTransport) {
 	})
 }
 
+var marshalRequest = func(req *protocol.Request) ([]byte, error) {
+	return req.Marshal()
+}
+
 // NewMultiplexedTransport creates a new multiplexed transport
 func NewMultiplexedTransport(config TransportConfig, logger *Logger) (*MultiplexedTransport, error) {
 	if config.Address == "" {
@@ -202,7 +206,7 @@ func (t *MultiplexedTransport) Call(ctx context.Context, req *protocol.Request) 
 	defer pending.cleanup(t)
 
 	// Marshal request
-	reqData, err := req.Marshal()
+	reqData, err := marshalRequest(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}

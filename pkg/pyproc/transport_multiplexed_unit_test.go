@@ -141,6 +141,32 @@ func TestMultiplexedTransportCallContextDeadline(t *testing.T) {
 	}
 }
 
+func TestMultiplexedTransportCallContextCanceledAfterWrite(t *testing.T) {
+	transport, server := newPipeTransport(t, nil)
+	serverFramer := framing.NewFramer(server)
+
+	requestRead := make(chan struct{})
+	go func() {
+		_, _ = serverFramer.ReadMessage()
+		close(requestRead)
+	}()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := transport.Call(ctx, &protocol.Request{})
+		errCh <- err
+	}()
+
+	<-requestRead
+	cancel()
+
+	err := <-errCh
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context canceled, got %v", err)
+	}
+}
+
 func TestMultiplexedTransportCallTransportTimeout(t *testing.T) {
 	transport, server := newPipeTransport(t, map[string]interface{}{
 		"request_timeout": 20 * time.Millisecond,
@@ -182,12 +208,50 @@ func TestMultiplexedTransportCallErrCh(t *testing.T) {
 	}
 }
 
+func TestMultiplexedTransportCallMarshalError(t *testing.T) {
+	transport, _ := newPipeTransport(t, nil)
+	original := marshalRequest
+	marshalRequest = func(*protocol.Request) ([]byte, error) {
+		return nil, errors.New("marshal failed")
+	}
+	t.Cleanup(func() { marshalRequest = original })
+
+	_, err := transport.Call(context.Background(), &protocol.Request{})
+	if err == nil || !strings.Contains(err.Error(), "failed to marshal request") {
+		t.Fatalf("expected marshal error, got %v", err)
+	}
+}
+
 func TestMultiplexedTransportReadLoopUnmarshalError(t *testing.T) {
 	transport, server := newPipeTransport(t, nil)
 	startReadLoop(t, transport)
 	serverFramer := framing.NewFramer(server)
 	if err := serverFramer.WriteMessage([]byte("not-json")); err != nil {
 		t.Fatalf("failed to write invalid message: %v", err)
+	}
+	_ = server.Close()
+	time.Sleep(10 * time.Millisecond)
+}
+
+func TestMultiplexedTransportReadLoopResponseChannelFull(t *testing.T) {
+	transport, server := newPipeTransport(t, nil)
+	startReadLoop(t, transport)
+	serverFramer := framing.NewFramer(server)
+
+	pending := &pendingRequest{
+		id:         1,
+		responseCh: make(chan *protocol.Response, 1),
+		errCh:      make(chan error, 1),
+	}
+	pending.responseCh <- &protocol.Response{ID: 1, OK: true}
+	transport.mu.Lock()
+	transport.pending[1] = pending
+	transport.mu.Unlock()
+
+	resp := &protocol.Response{ID: 1, OK: true, Body: []byte(`{}`)}
+	data, _ := resp.Marshal()
+	if err := serverFramer.WriteMessage(data); err != nil {
+		t.Fatalf("failed to write response: %v", err)
 	}
 	_ = server.Close()
 	time.Sleep(10 * time.Millisecond)
@@ -279,6 +343,26 @@ func TestMultiplexedTransportHandleReadErrorClosedChannel(t *testing.T) {
 	}
 }
 
+func TestMultiplexedTransportHandleReadErrorErrChannelFull(t *testing.T) {
+	transport := &MultiplexedTransport{
+		logger:  NewLogger(LoggingConfig{Level: "error"}),
+		pending: make(map[uint64]*pendingRequest),
+		closeCh: make(chan struct{}),
+	}
+	pending := &pendingRequest{
+		id:         1,
+		responseCh: make(chan *protocol.Response, 1),
+		errCh:      make(chan error, 1),
+	}
+	pending.errCh <- errors.New("filled")
+	transport.pending[1] = pending
+
+	transport.handleReadError(errors.New("boom"))
+	if len(transport.pending) != 0 {
+		t.Fatal("expected pending to be cleared")
+	}
+}
+
 func TestMultiplexedTransportCloseAndIsHealthy(t *testing.T) {
 	transport, _ := newPipeTransport(t, nil)
 	pending := &pendingRequest{
@@ -298,6 +382,20 @@ func TestMultiplexedTransportCloseAndIsHealthy(t *testing.T) {
 	}
 	if len(transport.pending) != 0 {
 		t.Fatal("expected pending to be cleared on close")
+	}
+}
+
+func TestMultiplexedTransportCloseErrChannelFull(t *testing.T) {
+	transport, _ := newPipeTransport(t, nil)
+	pending := &pendingRequest{
+		id:         1,
+		responseCh: make(chan *protocol.Response, 1),
+		errCh:      make(chan error, 1),
+	}
+	pending.errCh <- errors.New("filled")
+	transport.pending[1] = pending
+	if err := transport.Close(); err != nil {
+		t.Fatalf("close failed: %v", err)
 	}
 }
 
