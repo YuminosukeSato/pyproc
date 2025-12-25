@@ -63,3 +63,4 @@ coverage.out
 coverage.txt
 .gocache/
 .gomodcache/
+/openspec/*
