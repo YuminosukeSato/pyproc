@@ -2,6 +2,7 @@ package pyproc
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -67,6 +68,7 @@ func (m *PoolMetrics) GetLatencyPercentile(percentile float64) time.Duration {
 	// Create a copy for sorting
 	sorted := make([]time.Duration, len(m.latencies))
 	copy(sorted, m.latencies)
+	slices.Sort(sorted)
 
 	// Simple percentile calculation (not perfectly accurate but fast)
 	index := int(float64(len(sorted)-1) * percentile / 100.0)
@@ -80,10 +82,21 @@ func (m *PoolMetrics) GetLatencyPercentile(percentile float64) time.Duration {
 	return sorted[index]
 }
 
-// GetMetricsSnapshot returns a snapshot of current metrics
+// GetMetricsSnapshot returns a snapshot of current metrics.
+// Percentiles are computed inline to avoid nested RLock on latencyMu,
+// which would deadlock under concurrent writes (Go RWMutex is not reentrant).
 func (m *PoolMetrics) GetMetricsSnapshot() MetricsSnapshot {
 	m.latencyMu.RLock()
-	defer m.latencyMu.RUnlock()
+	var p50, p95, p99 time.Duration
+	if len(m.latencies) > 0 {
+		sorted := make([]time.Duration, len(m.latencies))
+		copy(sorted, m.latencies)
+		slices.Sort(sorted)
+		p50 = percentileFromSorted(sorted, 50)
+		p95 = percentileFromSorted(sorted, 95)
+		p99 = percentileFromSorted(sorted, 99)
+	}
+	m.latencyMu.RUnlock()
 
 	return MetricsSnapshot{
 		ConnectionsCreated:   m.ConnectionsCreated.Load(),
@@ -98,10 +111,22 @@ func (m *PoolMetrics) GetMetricsSnapshot() MetricsSnapshot {
 		WorkerFailures:       m.WorkerFailures.Load(),
 		PoolUtilization:      float64(m.PoolUtilization.Load()) / 100.0,
 		QueueDepth:           m.QueueDepth.Load(),
-		LatencyP50:           m.GetLatencyPercentile(50),
-		LatencyP95:           m.GetLatencyPercentile(95),
-		LatencyP99:           m.GetLatencyPercentile(99),
+		LatencyP50:           p50,
+		LatencyP95:           p95,
+		LatencyP99:           p99,
 	}
+}
+
+// percentileFromSorted returns the value at the given percentile from a pre-sorted slice.
+func percentileFromSorted(sorted []time.Duration, percentile float64) time.Duration {
+	index := int(float64(len(sorted)-1) * percentile / 100.0)
+	if index < 0 {
+		index = 0
+	}
+	if index >= len(sorted) {
+		index = len(sorted) - 1
+	}
+	return sorted[index]
 }
 
 // MetricsSnapshot represents a point-in-time metrics snapshot
