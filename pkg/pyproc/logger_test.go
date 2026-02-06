@@ -87,3 +87,15 @@ func TestLoggerWithWorker(t *testing.T) {
 	ctx := context.Background()
 	workerLogger.InfoContext(ctx, "message with worker")
 }
+
+func TestLoggerWithRequestID(t *testing.T) {
+	logger := NewLogger(LoggingConfig{Level: "info", TraceEnabled: true})
+	reqLogger := logger.WithRequestID(42)
+
+	if reqLogger == nil {
+		t.Fatal("expected non-nil logger from WithRequestID")
+	}
+
+	ctx := context.Background()
+	reqLogger.InfoContext(ctx, "message with request id")
+}
