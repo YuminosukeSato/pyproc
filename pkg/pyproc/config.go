@@ -21,11 +21,12 @@ type Config struct {
 
 // PoolConfig defines worker pool settings
 type PoolConfig struct {
-	Workers        int           `mapstructure:"workers"`
-	MaxInFlight    int           `mapstructure:"max_in_flight"`
-	StartTimeout   time.Duration `mapstructure:"start_timeout"`
-	HealthInterval time.Duration `mapstructure:"health_interval"`
-	Restart        RestartConfig `mapstructure:"restart"`
+	Workers              int           `mapstructure:"workers"`
+	MaxInFlight          int           `mapstructure:"max_in_flight"`
+	MaxInFlightPerWorker int           `mapstructure:"max_in_flight_per_worker"`
+	StartTimeout         time.Duration `mapstructure:"start_timeout"`
+	HealthInterval       time.Duration `mapstructure:"health_interval"`
+	Restart              RestartConfig `mapstructure:"restart"`
 }
 
 // RestartConfig defines restart policy
@@ -122,6 +123,7 @@ func setDefaults(v *viper.Viper) {
 	// Pool defaults
 	v.SetDefault("pool.workers", 4)
 	v.SetDefault("pool.max_in_flight", 10)
+	v.SetDefault("pool.max_in_flight_per_worker", 1)
 	v.SetDefault("pool.start_timeout", 30)
 	v.SetDefault("pool.health_interval", 30)
 	v.SetDefault("pool.restart.max_attempts", 5)
