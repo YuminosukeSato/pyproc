@@ -161,5 +161,4 @@ metadata:
 ## Related Documentation
 
 - [Kubernetes Deployment](kubernetes.md): Pod configuration and manifests
-- [Kubernetes Troubleshooting](kubernetes-troubleshooting.md): Debugging common issues
 - [Docker Deployment](docker.md): Container image building
