@@ -234,6 +234,5 @@ Fix:
 ## Related Documentation
 
 - [Kubernetes Deployment](kubernetes.md): Pod configuration and manifests
-- [Resource and Security Recommendations](kubernetes-resources.md): Sizing guidelines
 - [Docker Deployment](docker.md): Container image building
 - [Monitoring](monitoring.md): Metrics and observability
