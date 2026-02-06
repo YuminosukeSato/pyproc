@@ -8,5 +8,14 @@ accept = ["200..299", "403"]
 exclude = [
   "https://pkg.go.dev/github.com/YuminosukeSato/pyproc",
   "https://raw.githack.com/wiki/YuminosukeSato/pyproc/coverage.html",
-  "https://man7.org/.*"
+  "https://man7.org/.*",
+  # Exclude example/overlay links that are added by other PRs in the same release
+  "https://github.com/YuminosukeSato/pyproc/tree/main/examples/helm-gke-.*",
+  "https://github.com/YuminosukeSato/pyproc/tree/main/examples/helm-eks-.*",
+  "https://github.com/YuminosukeSato/pyproc/tree/main/examples/helm-aks-.*",
+  "https://github.com/YuminosukeSato/pyproc/tree/main/examples/helm-secrets-.*",
+  "https://github.com/YuminosukeSato/pyproc/tree/main/deploy/kustomize/overlays/gke-.*",
+  "https://github.com/YuminosukeSato/pyproc/tree/main/deploy/kustomize/overlays/eks-.*",
+  "https://github.com/YuminosukeSato/pyproc/tree/main/deploy/kustomize/overlays/aks-.*",
+  "https://github.com/YuminosukeSato/pyproc/tree/main/deploy/kustomize/overlays/secrets-.*"
 ]
