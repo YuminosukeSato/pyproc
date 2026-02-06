@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"net"
-	"path/filepath"
 	"testing"
 )
 
@@ -83,8 +82,7 @@ func TestSecretFromHex_InvalidHex(t *testing.T) {
 
 func TestHMACAuthClientServer(t *testing.T) {
 	requireUnixSocket(t)
-	tmpDir := t.TempDir()
-	socketPath := filepath.Join(tmpDir, "hmac-test.sock")
+	socketPath := tempSocketPath(t, "hmac-test")
 
 	secret := []byte("shared-secret-key-for-testing")
 	serverAuth := NewHMACAuth(secret)
@@ -125,8 +123,7 @@ func TestHMACAuthClientServer(t *testing.T) {
 
 func TestHMACAuthWrongSecret(t *testing.T) {
 	requireUnixSocket(t)
-	tmpDir := t.TempDir()
-	socketPath := filepath.Join(tmpDir, "w.sock")
+	socketPath := tempSocketPath(t, "hmac-wrong")
 
 	serverAuth := NewHMACAuth([]byte("server-secret"))
 	clientAuth := NewHMACAuth([]byte("wrong-client-secret"))
@@ -166,8 +163,7 @@ func TestHMACAuthWrongSecret(t *testing.T) {
 
 func TestNewHMACListener(t *testing.T) {
 	requireUnixSocket(t)
-	tmpDir := t.TempDir()
-	socketPath := filepath.Join(tmpDir, "hmac-listener.sock")
+	socketPath := tempSocketPath(t, "hmac-listener")
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {

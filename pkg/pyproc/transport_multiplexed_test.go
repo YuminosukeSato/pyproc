@@ -243,7 +243,7 @@ func TestNewMultiplexedTransport_NonExistentSocket(t *testing.T) {
 
 func TestMultiplexedTransport_CallAfterClose(t *testing.T) {
 	requireUnixSocket(t)
-	socketPath := "/tmp/mux-call-close.sock"
+	socketPath := tempSocketPath(t, "mux-call-close")
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
@@ -282,7 +282,7 @@ func TestMultiplexedTransport_CallAfterClose(t *testing.T) {
 
 func TestMultiplexedTransport_IsHealthy(t *testing.T) {
 	requireUnixSocket(t)
-	socketPath := "/tmp/mux-health.sock"
+	socketPath := tempSocketPath(t, "mux-health")
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
@@ -323,7 +323,7 @@ func TestMultiplexedTransport_IsHealthy(t *testing.T) {
 
 func TestMultiplexedTransport_ReadError(t *testing.T) {
 	requireUnixSocket(t)
-	socketPath := "/tmp/mux-read-error.sock"
+	socketPath := tempSocketPath(t, "mux-read-error")
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
@@ -362,7 +362,7 @@ func TestMultiplexedTransport_ReadError(t *testing.T) {
 
 func TestMultiplexedTransport_DoubleClose(t *testing.T) {
 	requireUnixSocket(t)
-	socketPath := "/tmp/mux-dclose.sock"
+	socketPath := tempSocketPath(t, "mux-dclose")
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {

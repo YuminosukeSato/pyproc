@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -12,7 +13,11 @@ import (
 // It uses /tmp directly to avoid macOS socket path length limits.
 func startTestUnixListener(t *testing.T) (net.Listener, string) {
 	t.Helper()
-	f, err := os.CreateTemp("/tmp", "pyproc-test-*.sock")
+	baseDir := filepath.Join(os.TempDir(), "pyproc")
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	f, err := os.CreateTemp(baseDir, "pyproc-test-*.sock")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
