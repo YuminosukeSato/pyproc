@@ -104,6 +104,7 @@ nav:
     - Worker Development: guides/worker-development.md
     - Error Handling: guides/error-handling.md
     - Performance Tuning: guides/performance-tuning.md
+    - Observability: observability.md
     - Testing: guides/testing.md
   - Deployment:
     - Docker: deployment/docker.md
