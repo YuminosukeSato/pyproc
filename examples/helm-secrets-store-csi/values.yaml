@@ -1,0 +1,17 @@
+# Secrets Store CSI Driver values override for pyproc
+# Mounts cloud secrets as files via the Secrets Store CSI Driver.
+
+# Extra volumes for secrets
+extraVolumes:
+  - name: secrets-store
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes:
+        secretProviderClass: pyproc-secrets
+
+# Extra volume mounts for secrets
+extraVolumeMounts:
+  - name: secrets-store
+    mountPath: /mnt/secrets
+    readOnly: true
