@@ -15,16 +15,16 @@ func startTestSocket(t *testing.T) (net.Listener, string) {
 		t.Fatalf("failed to create temp file: %v", err)
 	}
 	sockPath := f.Name()
-	f.Close()
-	os.Remove(sockPath)
+	_ = f.Close()
+	_ = os.Remove(sockPath)
 
 	ln, err := net.Listen("unix", sockPath)
 	if err != nil {
 		t.Fatalf("failed to create test unix listener: %v", err)
 	}
 	t.Cleanup(func() {
-		ln.Close()
-		os.Remove(sockPath)
+		_ = ln.Close()
+		_ = os.Remove(sockPath)
 	})
 	go func() {
 		for {
