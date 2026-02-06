@@ -1,0 +1,9 @@
+apiVersion: v2
+name: pyproc
+description: A Helm chart for pyproc - Go to Python UDS IPC library
+type: application
+version: 0.5.0
+appVersion: "0.5.0"
+maintainers:
+  - name: pyproc
+    url: https://github.com/YuminosukeSato/pyproc
