@@ -270,3 +270,31 @@ jobs:
             sbom-go.cdx.json
             sbom-python.cdx.json
 
+  k8s-manifests:
+    name: K8s manifest validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Helm lint
+        run: helm lint charts/pyproc/
+
+      - name: Helm template
+        run: helm template test charts/pyproc/
+
+      - name: Kustomize build - dev
+        run: kustomize build deploy/kustomize/overlays/dev
+
+      - name: Kustomize build - staging
+        run: kustomize build deploy/kustomize/overlays/staging
+
+      - name: Kustomize build - production
+        run: kustomize build deploy/kustomize/overlays/production
+
