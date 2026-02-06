@@ -42,4 +42,4 @@ jobs:
             - UDS security (socket permissions, HMAC)
             - Performance regressions in IPC paths
             Be concise. Only flag real issues.
-          claude_args: "--max-turns 20 --model claude-opus-4-5-20251101"
+          claude_args: "--max-turns 30 --model claude-opus-4-5-20251101"
