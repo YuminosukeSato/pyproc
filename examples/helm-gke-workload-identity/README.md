@@ -29,6 +29,10 @@ helm install myapp ./charts/pyproc -f examples/helm-gke-workload-identity/values
 - ServiceAccount with `iam.gke.io/gcp-service-account` annotation
 - Links the Kubernetes SA to a Google Cloud SA for Workload Identity
 
+## Token Mount Note
+
+The base Helm chart sets `automountServiceAccountToken: false` on the ServiceAccount. GKE Workload Identity Federation requires mounting a projected service account token. The GKE metadata server intercepts token requests independently, but the Kustomize overlay sets `automountServiceAccountToken: true` explicitly to ensure the token is available in all configurations.
+
 ## Customization
 
 - `serviceAccount.annotations.iam.gke.io/gcp-service-account`: Target Google Cloud service account email
