@@ -239,4 +239,5 @@ Actual values depend on the workload. Adjust based on benchmark results.
 - [Support Matrix](../compatibility/support-matrix.md): Supported OS / runtime list
 - [Docker Deployment](docker.md): Container image building
 - [Monitoring](monitoring.md): Metrics and observability
+- [Resource and Security Recommendations](kubernetes-resources.md): Resource sizing and Pod Security Standards
 - [Troubleshooting](kubernetes-troubleshooting.md): Diagnosing common K8s issues

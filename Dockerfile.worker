@@ -1,0 +1,23 @@
+# Standalone Python worker image for sidecar deployment pattern.
+# Use this when running Go and Python as separate containers in the same Pod.
+FROM python:3.12-slim
+
+# Install uv for Python package management (pip is not used in pyproc)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Install pyproc-worker
+RUN uv pip install --system pyproc-worker
+
+# Create non-root user
+RUN groupadd -g 1000 pyproc && \
+    useradd -u 1000 -g pyproc -m -s /bin/sh pyproc
+
+WORKDIR /app
+
+# Create directories for UDS and tmp with correct ownership
+RUN mkdir -p /var/run/pyproc /tmp/pyproc && \
+    chown -R pyproc:pyproc /app /var/run/pyproc /tmp/pyproc
+
+USER 1000:1000
+
+ENTRYPOINT ["pyproc-worker"]
