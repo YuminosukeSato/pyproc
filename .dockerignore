@@ -1,0 +1,32 @@
+# Version control
+.git
+.github
+.gitignore
+
+# Development tools
+.claude
+.codex
+.sdd
+.ssd
+.serena
+.git-worktrees
+
+# Test and benchmark
+bench
+tests
+
+# Documentation (not needed in image)
+docs
+*.md
+!README.md
+
+# Examples and non-essential directories
+adtech-bidding
+examples
+
+# IDE and OS
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
