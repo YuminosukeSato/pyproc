@@ -246,3 +246,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  sbom:
+    name: SBOM generation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install syft
+        uses: anchore/sbom-action/download-syft@v0
+
+      - name: Generate Go SBOM
+        run: syft dir:. --exclude ./worker/python -o cyclonedx-json=sbom-go.cdx.json
+
+      - name: Generate Python SBOM
+        run: syft dir:worker/python -o cyclonedx-json=sbom-python.cdx.json
+
+      - name: Upload SBOMs
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            sbom-go.cdx.json
+            sbom-python.cdx.json
+
