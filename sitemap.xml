@@ -2,106 +2,114 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/codec-performance/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/coverage/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/design/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/ops/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/security/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/community/changelog/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/community/contributing/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/community/faq/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
+    </url>
+    <url>
+         <loc>https://yuminosukesato.github.io/pyproc/compatibility/support-matrix/</loc>
+         <lastmod>2026-02-06</lastmod>
+    </url>
+    <url>
+         <loc>https://yuminosukesato.github.io/pyproc/compatibility/versioning-policy/</loc>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/deployment/docker/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/deployment/kubernetes/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/deployment/monitoring/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/deployment/troubleshooting/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/getting-started/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/getting-started/first-integration/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/getting-started/installation/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/getting-started/quick-start/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/guides/error-handling/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/guides/performance-tuning/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/guides/testing/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/guides/type-safe-api/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/guides/worker-development/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/reference/architecture/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/reference/codec-performance/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/reference/operations/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/reference/security/</loc>
-         <lastmod>2025-12-06</lastmod>
+         <lastmod>2026-02-06</lastmod>
     </url>
 </urlset>
