@@ -17,8 +17,9 @@ This example configures a pyproc deployment to use AKS Entra Workload Identity f
     --identity-name MANAGED_IDENTITY_NAME \
     --resource-group RESOURCE_GROUP \
     --issuer AKS_OIDC_ISSUER \
-    --subject system:serviceaccount:NAMESPACE:pyproc
+    --subject system:serviceaccount:NAMESPACE:RELEASE_NAME-pyproc
   ```
+  Replace RELEASE_NAME with your Helm release name (e.g., myapp). Alternatively, set `serviceAccount.name` in values.yaml to use a fixed name.
 
 ## Usage
 
