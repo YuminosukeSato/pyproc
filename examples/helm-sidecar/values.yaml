@@ -1,0 +1,71 @@
+# Sidecar Helm values override for pyproc
+# Two-container deployment: Go app and Python worker run as separate containers
+# sharing a UDS volume (ExternalMode).
+
+replicaCount: 2
+
+image:
+  repository: myapp-go
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+# Enable sidecar (ExternalMode) deployment
+sidecar:
+  enabled: true
+  image:
+    repository: myapp-worker
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  command: ["pyproc-worker"]
+  args: ["/app/worker.py", "--socket-path", "/var/run/pyproc/worker.sock"]
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "256Mi"
+  limits:
+    cpu: "1000m"
+    memory: "512Mi"
+
+# UDS socket directory (shared between Go and Python containers via emptyDir)
+socketDir: /var/run/pyproc
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 10
+  periodSeconds: 15
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  failureThreshold: 2
+
+service:
+  type: ClusterIP
+  port: 8080
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
