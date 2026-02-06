@@ -8,7 +8,8 @@
 # Standard deployment on a single machine
 pool:
   workers: 4           # Number of Python processes
-  max_in_flight: 10    # Max concurrent requests per worker
+  max_in_flight: 10    # Max concurrent requests across the pool
+  max_in_flight_per_worker: 1  # Max in-flight requests per worker
   health_interval: 30s # Health check frequency
 
 python:
@@ -100,7 +101,8 @@ cfg := pyproc.WorkerConfig{
 ```go
 poolCfg := pyproc.PoolConfig{
     Workers:        4,               // Number of workers
-    MaxInFlight:    10,              // Per-worker concurrency
+    MaxInFlight:    10,              // Global concurrency across the pool
+    MaxInFlightPerWorker: 1,         // Per-worker in-flight cap
     HealthInterval: 30 * time.Second, // Health check frequency
     Restart: pyproc.RestartConfig{
         MaxAttempts:    5,
@@ -260,6 +262,8 @@ conn.SetWriteBuffer(1024 * 1024) // 1MB
 ```go
 // Match MaxInFlight to expected concurrency
 MaxInFlight: runtime.NumCPU() * 2
+// Keep per-worker at 1 unless the Python worker can process concurrent requests
+MaxInFlightPerWorker: 1
 ```
 
 ## Troubleshooting
@@ -327,4 +331,3 @@ echo '{"id":1,"method":"health","body":{}}' | \
 - [ ] Test failure scenarios
 - [ ] Document worker dependencies
 - [ ] Create runbooks for common issues
-

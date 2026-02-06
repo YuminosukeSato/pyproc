@@ -3,7 +3,6 @@ package pyproc
 import (
 	"context"
 	"net"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -54,8 +53,7 @@ func TestNewUDSTransport_NonExistentSocket(t *testing.T) {
 
 func TestUDSTransport_CallAfterClose(t *testing.T) {
 	requireUnixSocket(t)
-	tmpDir := t.TempDir()
-	socketPath := filepath.Join(tmpDir, "t.sock")
+	socketPath := tempSocketPath(t, "uds-call-close")
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
@@ -93,8 +91,7 @@ func TestUDSTransport_CallAfterClose(t *testing.T) {
 
 func TestUDSTransport_Health(t *testing.T) {
 	requireUnixSocket(t)
-	tmpDir := t.TempDir()
-	socketPath := filepath.Join(tmpDir, "h.sock")
+	socketPath := tempSocketPath(t, "uds-health")
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
@@ -131,7 +128,7 @@ func TestUDSTransport_Health(t *testing.T) {
 
 func TestUDSTransport_Reconnect(t *testing.T) {
 	requireUnixSocket(t)
-	socketPath := "/tmp/reconnect-test.sock"
+	socketPath := tempSocketPath(t, "uds-reconnect")
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
@@ -166,7 +163,7 @@ func TestUDSTransport_Reconnect(t *testing.T) {
 
 func TestUDSTransport_ReconnectFail(t *testing.T) {
 	requireUnixSocket(t)
-	socketPath := "/tmp/reconnect-fail.sock"
+	socketPath := tempSocketPath(t, "uds-reconnect-fail")
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
@@ -202,7 +199,7 @@ func TestUDSTransport_ReconnectFail(t *testing.T) {
 
 func TestUDSTransport_PingFail(t *testing.T) {
 	requireUnixSocket(t)
-	socketPath := "/tmp/ping-fail.sock"
+	socketPath := tempSocketPath(t, "uds-ping-fail")
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
@@ -243,8 +240,7 @@ func TestUDSTransport_PingFail(t *testing.T) {
 
 func TestUDSTransport_DoubleClose(t *testing.T) {
 	requireUnixSocket(t)
-	tmpDir := t.TempDir()
-	socketPath := filepath.Join(tmpDir, "d.sock")
+	socketPath := tempSocketPath(t, "uds-dclose")
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {

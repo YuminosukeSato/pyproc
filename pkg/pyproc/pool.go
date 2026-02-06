@@ -42,16 +42,20 @@ type workerHandle interface {
 
 // Pool manages multiple Python workers with load balancing
 type Pool struct {
-	opts     PoolOptions
-	logger   *Logger
-	workers  []*poolWorker
-	nextIdx  atomic.Uint64
-	shutdown atomic.Bool
-	started  atomic.Bool
-	wg       sync.WaitGroup
+	opts          PoolOptions
+	logger        *Logger
+	workers       []*poolWorker
+	nextIdx       atomic.Uint64
+	shutdown      atomic.Bool
+	started       atomic.Bool
+	activeCallsWG sync.WaitGroup
+	callsMu       sync.Mutex
+	wg            sync.WaitGroup
 
 	// Backpressure control
-	semaphore chan struct{}
+	semaphore       chan struct{}
+	workerAvailable chan struct{}
+	shutdownCh      chan struct{}
 
 	// Health monitoring
 	healthMu     sync.RWMutex
@@ -74,10 +78,11 @@ type activeRequest struct {
 
 // poolWorker wraps a Worker with connection pooling
 type poolWorker struct {
-	worker    workerHandle
-	connPool  chan net.Conn
-	requestID atomic.Uint64
-	healthy   atomic.Bool
+	worker       workerHandle
+	connPool     chan net.Conn
+	inflightGate chan struct{}
+	requestID    atomic.Uint64
+	healthy      atomic.Bool
 }
 
 // HealthStatus represents the health of the pool
@@ -101,6 +106,9 @@ func NewPool(opts PoolOptions, logger *Logger) (*Pool, error) {
 	if opts.Config.MaxInFlight <= 0 {
 		opts.Config.MaxInFlight = 10
 	}
+	if opts.Config.MaxInFlightPerWorker <= 0 {
+		opts.Config.MaxInFlightPerWorker = 1
+	}
 	if opts.Config.HealthInterval <= 0 {
 		opts.Config.HealthInterval = 30 * time.Second
 	}
@@ -110,11 +118,13 @@ func NewPool(opts PoolOptions, logger *Logger) (*Pool, error) {
 	}
 
 	pool := &Pool{
-		opts:           opts,
-		logger:         logger,
-		workers:        make([]*poolWorker, opts.Config.Workers),
-		semaphore:      make(chan struct{}, opts.Config.Workers*opts.Config.MaxInFlight),
-		activeRequests: make(map[uint64]*activeRequest),
+		opts:            opts,
+		logger:          logger,
+		workers:         make([]*poolWorker, opts.Config.Workers),
+		semaphore:       make(chan struct{}, opts.Config.MaxInFlight),
+		workerAvailable: make(chan struct{}, opts.Config.Workers*opts.Config.MaxInFlightPerWorker),
+		shutdownCh:      make(chan struct{}),
+		activeRequests:  make(map[uint64]*activeRequest),
 	}
 
 	// Create workers
@@ -128,8 +138,9 @@ func NewPool(opts PoolOptions, logger *Logger) (*Pool, error) {
 
 		worker := NewWorker(workerCfg, logger)
 		pool.workers[i] = &poolWorker{
-			worker:   worker,
-			connPool: make(chan net.Conn, opts.Config.MaxInFlight),
+			worker:       worker,
+			connPool:     make(chan net.Conn, opts.Config.MaxInFlightPerWorker),
+			inflightGate: make(chan struct{}, opts.Config.MaxInFlightPerWorker),
 		}
 	}
 
@@ -148,6 +159,9 @@ func newExternalPool(opts PoolOptions, logger *Logger) (*Pool, error) {
 	if opts.Config.MaxInFlight <= 0 {
 		opts.Config.MaxInFlight = 10
 	}
+	if opts.Config.MaxInFlightPerWorker <= 0 {
+		opts.Config.MaxInFlightPerWorker = 1
+	}
 	if opts.Config.HealthInterval <= 0 {
 		opts.Config.HealthInterval = 30 * time.Second
 	}
@@ -157,11 +171,13 @@ func newExternalPool(opts PoolOptions, logger *Logger) (*Pool, error) {
 	}
 
 	pool := &Pool{
-		opts:           opts,
-		logger:         logger,
-		workers:        make([]*poolWorker, numWorkers),
-		semaphore:      make(chan struct{}, numWorkers*opts.Config.MaxInFlight),
-		activeRequests: make(map[uint64]*activeRequest),
+		opts:            opts,
+		logger:          logger,
+		workers:         make([]*poolWorker, numWorkers),
+		semaphore:       make(chan struct{}, opts.Config.MaxInFlight),
+		workerAvailable: make(chan struct{}, numWorkers*opts.Config.MaxInFlightPerWorker),
+		shutdownCh:      make(chan struct{}),
+		activeRequests:  make(map[uint64]*activeRequest),
 	}
 
 	for i, sockPath := range opts.ExternalSocketPaths {
@@ -172,8 +188,9 @@ func newExternalPool(opts PoolOptions, logger *Logger) (*Pool, error) {
 			RetryInterval:  opts.ExternalRetryInterval,
 		})
 		pool.workers[i] = &poolWorker{
-			worker:   worker,
-			connPool: make(chan net.Conn, opts.Config.MaxInFlight),
+			worker:       worker,
+			connPool:     make(chan net.Conn, opts.Config.MaxInFlightPerWorker),
+			inflightGate: make(chan struct{}, opts.Config.MaxInFlightPerWorker),
 		}
 	}
 
@@ -210,7 +227,7 @@ func (p *Pool) Start(ctx context.Context) error {
 		select {
 		case pw.connPool <- conn:
 		default:
-			// Pool is full (shouldn't happen with MaxInFlight=1), close connection
+			// Pool is full (shouldn't happen with MaxInFlightPerWorker=1), close connection
 			if err := conn.Close(); err != nil {
 				p.logger.Error("failed to close connection", "error", err)
 			}
@@ -236,9 +253,14 @@ func (p *Pool) Start(ctx context.Context) error {
 
 // Call invokes a method on one of the workers using round-robin
 func (p *Pool) Call(ctx context.Context, method string, input interface{}, output interface{}) error {
+	p.callsMu.Lock()
 	if p.shutdown.Load() {
+		p.callsMu.Unlock()
 		return errors.New("pool is shut down")
 	}
+	p.activeCallsWG.Add(1)
+	p.callsMu.Unlock()
+	defer p.activeCallsWG.Done()
 
 	// Acquire semaphore for backpressure
 	select {
@@ -246,31 +268,27 @@ func (p *Pool) Call(ctx context.Context, method string, input interface{}, outpu
 		defer func() { <-p.semaphore }()
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-p.shutdownCh:
+		return errors.New("pool is shut down")
 	}
 
-	// Select worker using round-robin
-	idx := p.nextIdx.Add(1) - 1
-	workerIdx := int(idx % uint64(len(p.workers)))
-	pw := p.workers[workerIdx]
-
-	if !pw.healthy.Load() {
-		// Try to find a healthy worker
-		for i, w := range p.workers {
-			if w.healthy.Load() {
-				pw = w
-				workerIdx = i
-				break
-			}
-		}
-		if !pw.healthy.Load() {
-			return errors.New("no healthy workers available")
-		}
+	pw, workerIdx, err := p.acquireWorker(ctx)
+	if err != nil {
+		return err
 	}
+	defer func() {
+		<-pw.inflightGate
+		p.signalWorkerAvailable()
+	}()
 
 	// Get connection from pool
 	var conn net.Conn
 	select {
-	case conn = <-pw.connPool:
+	case pooledConn, ok := <-pw.connPool:
+		if !ok {
+			return errors.New("connection pool closed")
+		}
+		conn = pooledConn
 	default:
 		// Create new connection if pool is empty
 		var err error
@@ -308,12 +326,14 @@ func (p *Pool) Call(ctx context.Context, method string, input interface{}, outpu
 		p.activeRequestsMu.Unlock()
 
 		// Return connection to pool only if not closed
-		if !connClosed {
+		if !connClosed && !p.shutdown.Load() {
 			select {
 			case pw.connPool <- conn:
 			default:
 				_ = conn.Close()
 			}
+		} else if !connClosed {
+			_ = conn.Close()
 		}
 	}()
 
@@ -382,6 +402,7 @@ func (p *Pool) Shutdown(_ context.Context) error {
 	if !p.shutdown.CompareAndSwap(false, true) {
 		return nil // Already shutting down
 	}
+	close(p.shutdownCh)
 
 	p.logger.Info("shutting down worker pool")
 
@@ -389,6 +410,13 @@ func (p *Pool) Shutdown(_ context.Context) error {
 	if p.healthCancel != nil {
 		p.healthCancel()
 	}
+
+	// Wait for in-flight calls to complete before closing pools.
+	// The lock ensures all in-progress Call() goroutines have finished
+	// their activeCallsWG.Add(1) before we start waiting.
+	p.callsMu.Lock()
+	p.activeCallsWG.Wait()
+	p.callsMu.Unlock()
 
 	// Close all connection pools
 	for _, pw := range p.workers {
@@ -415,6 +443,51 @@ func (p *Pool) Shutdown(_ context.Context) error {
 
 	p.logger.Info("worker pool shut down successfully")
 	return nil
+}
+
+func (p *Pool) signalWorkerAvailable() {
+	select {
+	case p.workerAvailable <- struct{}{}:
+	default:
+	}
+}
+
+func (p *Pool) acquireWorker(ctx context.Context) (*poolWorker, int, error) {
+	workers := p.workers
+	if len(workers) == 0 {
+		return nil, -1, errors.New("no workers available")
+	}
+
+	for {
+		startIdx := int(p.nextIdx.Add(1) - 1)
+		healthyFound := false
+
+		for i := 0; i < len(workers); i++ {
+			idx := (startIdx + i) % len(workers)
+			pw := workers[idx]
+			if !pw.healthy.Load() {
+				continue
+			}
+			healthyFound = true
+			select {
+			case pw.inflightGate <- struct{}{}:
+				return pw, idx, nil
+			default:
+			}
+		}
+
+		if !healthyFound {
+			return nil, -1, errors.New("no healthy workers available")
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, -1, ctx.Err()
+		case <-p.shutdownCh:
+			return nil, -1, errors.New("pool is shut down")
+		case <-p.workerAvailable:
+		}
+	}
 }
 
 // Health returns the current health status of the pool

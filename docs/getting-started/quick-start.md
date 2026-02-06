@@ -110,8 +110,9 @@ func main() {
     // Create a pool of Python workers
     pool, err := pyproc.NewPool(pyproc.PoolOptions{
         Config: pyproc.PoolConfig{
-            Workers:     4,  // Run 4 Python processes
-            MaxInFlight: 10, // Max concurrent requests per worker
+            Workers:              4,  // Run 4 Python processes
+            MaxInFlight:          10, // Global concurrent requests
+            MaxInFlightPerWorker: 1,  // Per-worker in-flight cap
         },
         WorkerConfig: pyproc.WorkerConfig{
             SocketPath:   "/tmp/pyproc.sock",
@@ -149,7 +150,8 @@ func main() {
 | Parameter | Description |
 |-----------|-------------|
 | `Workers` | Number of Python processes to spawn (recommended: 2-8 per CPU core) |
-| `MaxInFlight` | Max concurrent requests per worker (prevents overload) |
+| `MaxInFlight` | Max concurrent requests across the pool |
+| `MaxInFlightPerWorker` | Max in-flight requests per worker |
 | `SocketPath` | Unix Domain Socket file path (must be writable) |
 | `PythonExec` | Python interpreter path (`python3`, or path to venv) |
 | `WorkerScript` | Path to your Python worker script |

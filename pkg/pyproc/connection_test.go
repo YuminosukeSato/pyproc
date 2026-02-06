@@ -3,15 +3,13 @@ package pyproc
 import (
 	"context"
 	"net"
-	"path/filepath"
 	"testing"
 	"time"
 )
 
 func TestConnectToWorker_Success(t *testing.T) {
 	requireUnixSocket(t)
-	tmpDir := t.TempDir()
-	socketPath := filepath.Join(tmpDir, "test.sock")
+	socketPath := tempSocketPath(t, "connect-ok")
 
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
@@ -36,8 +34,7 @@ func TestConnectToWorker_Success(t *testing.T) {
 
 func TestConnectToWorker_Timeout(t *testing.T) {
 	requireUnixSocket(t)
-	tmpDir := t.TempDir()
-	socketPath := filepath.Join(tmpDir, "nonexistent.sock")
+	socketPath := tempSocketPath(t, "connect-timeout")
 
 	start := time.Now()
 	_, err := ConnectToWorker(socketPath, 200*time.Millisecond)
@@ -104,8 +101,7 @@ func TestSleepWithCtx_ContextAlreadyCanceled(t *testing.T) {
 
 func TestConnectToWorker_TimeoutDuringSleep(t *testing.T) {
 	requireUnixSocket(t)
-	tmpDir := t.TempDir()
-	socketPath := filepath.Join(tmpDir, "nonexistent.sock")
+	socketPath := tempSocketPath(t, "connect-timeout-sleep")
 
 	// Use very short timeout to ensure timeout occurs during sleep
 	// The timeout must be shorter than defaultSleepDuration (100ms) but long enough
@@ -129,8 +125,7 @@ func TestConnectToWorker_TimeoutDuringSleep(t *testing.T) {
 
 func TestConnectToWorker_TimeoutAfterSleep(t *testing.T) {
 	requireUnixSocket(t)
-	tmpDir := t.TempDir()
-	socketPath := filepath.Join(tmpDir, "nonexistent.sock")
+	socketPath := tempSocketPath(t, "connect-timeout-after")
 
 	// Use timeout longer than one sleep cycle (100ms) to ensure at least one
 	// sleep completes successfully. Try multiple times to increase likelihood

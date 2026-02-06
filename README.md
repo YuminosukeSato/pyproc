@@ -213,8 +213,9 @@ func main() {
     // Create a pool of Python workers
     pool, err := pyproc.NewPool(pyproc.PoolOptions{
         Config: pyproc.PoolConfig{
-            Workers:     4,  // Run 4 Python processes
-            MaxInFlight: 10, // Max concurrent requests per worker
+            Workers:              4,  // Run 4 Python processes
+            MaxInFlight:          10, // Global concurrent requests
+            MaxInFlightPerWorker: 1,  // Per-worker in-flight cap
         },
         WorkerConfig: pyproc.WorkerConfig{
             SocketPath:   "/tmp/pyproc.sock",
@@ -302,9 +303,10 @@ cfg := pyproc.WorkerConfig{
 #### Pool Configuration
 ```go
 poolCfg := pyproc.PoolConfig{
-    Workers:        4,                    // Number of Python processes
-    MaxInFlight:    10,                   // Max concurrent requests per worker
-    HealthInterval: 30 * time.Second,     // Health check frequency
+    Workers:              4,                    // Number of Python processes
+    MaxInFlight:          10,                   // Global concurrent requests
+    MaxInFlightPerWorker: 1,                    // Per-worker in-flight cap
+    HealthInterval:       30 * time.Second,     // Health check frequency
 }
 ```
 
@@ -680,8 +682,9 @@ The benchmarks show near-linear scaling with worker count, demonstrating the eff
 ```go
 pool, _ := pyproc.NewPool(pyproc.PoolOptions{
     Config: pyproc.PoolConfig{
-        Workers:     4,
-        MaxInFlight: 10,
+        Workers:              4,
+        MaxInFlight:          10,
+        MaxInFlightPerWorker: 1,
     },
     WorkerConfig: pyproc.WorkerConfig{
         SocketPath:   "/tmp/pyproc.sock",

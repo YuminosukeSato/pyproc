@@ -121,11 +121,13 @@ worker := p.workers[idx % uint64(len(p.workers))]
 
 ### Backpressure Mechanism
 
-Prevents overwhelming workers using a **semaphore-based** approach:
+Prevents overwhelming workers using a **global semaphore + per-worker gate** approach:
 
 ```go
-// Limit total in-flight requests across all workers
-semaphore := make(chan struct{}, workers * maxInFlight)
+// Limit total in-flight requests across the pool
+semaphore := make(chan struct{}, maxInFlight)
+// Limit per-worker in-flight requests
+inflightGate := make(chan struct{}, maxInFlightPerWorker)
 
 // Before each request
 semaphore <- struct{}{}  // Blocks if limit reached
@@ -135,9 +137,10 @@ defer func() { <-semaphore }()  // Release after completion
 **Configuration**:
 ```go
 Config: pyproc.PoolConfig{
-    Workers:     4,   // 4 Python processes
-    MaxInFlight: 10,  // Max 10 requests per worker
-    // Total capacity: 4 * 10 = 40 concurrent requests
+    Workers:               4,   // 4 Python processes
+    MaxInFlight:           10,  // Max concurrent requests across the pool
+    MaxInFlightPerWorker:  1,   // Max in-flight per worker
+    // Effective capacity: min(10, 4*1) = 4 concurrent requests
 }
 ```
 
@@ -287,7 +290,7 @@ respData, err := framer.ReadMessage()
 **Benefits**:
 - No socket open/close overhead per request
 - Connection reuse reduces latency
-- Backpressure via MaxInFlight limit
+- Backpressure via MaxInFlight (global) + MaxInFlightPerWorker (per worker)
 
 ### Graceful Shutdown
 
