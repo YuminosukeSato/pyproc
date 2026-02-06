@@ -12,6 +12,9 @@ This guide covers configuring pyproc to authenticate with cloud services using w
 
 When running pyproc on managed Kubernetes, you can leverage cloud-native workload identity to grant your pods access to cloud APIs (e.g. object storage, databases, secret managers) without managing service account keys or access keys.
 
+> [!NOTE]
+> The example directories referenced below (e.g. `examples/helm-gke-workload-identity/`) are introduced by companion PRs in the v0.6.0 release. They must be merged before this documentation.
+
 | Cloud | Mechanism | Annotation |
 |-------|-----------|------------|
 | GCP (GKE) | Workload Identity Federation | `iam.gke.io/gcp-service-account` |

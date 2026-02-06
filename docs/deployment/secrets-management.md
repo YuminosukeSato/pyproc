@@ -12,6 +12,9 @@ This guide covers mounting cloud secrets into pyproc pods using the Secrets Stor
 
 The Secrets Store CSI Driver mounts secrets from external secret managers (GCP Secret Manager, AWS Secrets Manager, Azure Key Vault) as files into pods. pyproc can then read these secrets from the filesystem at runtime.
 
+> [!NOTE]
+> The example directories referenced below (e.g. `examples/helm-secrets-store-csi/`) are introduced by companion PRs in the v0.6.0 release. They must be merged before this documentation.
+
 ## Prerequisites
 
 - Kubernetes cluster with the [Secrets Store CSI Driver](https://secrets-store-csi-driver.sigs.k8s.io/) installed
