@@ -28,9 +28,10 @@ type Message struct {
 
 // Request represents a request from Go to Python
 type Request struct {
-	ID     uint64          `json:"id"`
-	Method string          `json:"method"`
-	Body   json.RawMessage `json:"body"`
+	ID      uint64            `json:"id"`
+	Method  string            `json:"method"`
+	Body    json.RawMessage   `json:"body"`
+	Headers map[string]string `json:"headers,omitempty"` // For trace context propagation
 }
 
 // Response represents a response from Python to Go
