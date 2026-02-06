@@ -165,6 +165,28 @@ func TestPool_DefaultMaxInFlight(t *testing.T) {
 	}
 }
 
+func TestPool_DefaultMaxInFlightPerWorker(t *testing.T) {
+	opts := PoolOptions{
+		Config: PoolConfig{
+			Workers:              1,
+			MaxInFlight:          1,
+			MaxInFlightPerWorker: 0,
+		},
+		WorkerConfig: WorkerConfig{
+			SocketPath: "/tmp/test.sock",
+		},
+	}
+
+	pool, err := NewPool(opts, nil)
+	if err != nil {
+		t.Fatalf("NewPool failed: %v", err)
+	}
+
+	if pool.opts.Config.MaxInFlightPerWorker != 1 {
+		t.Errorf("expected default MaxInFlightPerWorker 1, got %d", pool.opts.Config.MaxInFlightPerWorker)
+	}
+}
+
 func TestPool_DefaultHealthInterval(t *testing.T) {
 	opts := PoolOptions{
 		Config: PoolConfig{

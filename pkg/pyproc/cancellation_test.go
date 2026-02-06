@@ -9,7 +9,7 @@ import (
 )
 
 // createTestPool creates a new pool for testing
-func createTestPool(t *testing.T, id string) *Pool {
+func createTestPoolWithConfig(t *testing.T, id string, workers int, maxInFlight int, perWorker int) *Pool {
 	requireUnixSocket(t)
 	// Use /tmp directly with short names to avoid 104 char Unix socket path limit on macOS
 	// Note: pool.go adds "-0" for worker ID, so keep the base path very short
@@ -19,9 +19,10 @@ func createTestPool(t *testing.T, id string) *Pool {
 
 	poolOpts := PoolOptions{
 		Config: PoolConfig{
-			Workers:        1,
-			MaxInFlight:    3, // Allow 3 concurrent requests for the concurrent test
-			HealthInterval: 100 * time.Millisecond,
+			Workers:              workers,
+			MaxInFlight:          maxInFlight,
+			MaxInFlightPerWorker: perWorker,
+			HealthInterval:       100 * time.Millisecond,
 		},
 		WorkerConfig: WorkerConfig{
 			ID:           id,
@@ -57,6 +58,10 @@ func createTestPool(t *testing.T, id string) *Pool {
 	})
 
 	return pool
+}
+
+func createTestPool(t *testing.T, id string) *Pool {
+	return createTestPoolWithConfig(t, id, 1, 3, 1)
 }
 
 // TestContextCancellation tests that context cancellation propagates to Python workers
@@ -121,7 +126,7 @@ func TestContextCancellation(t *testing.T) {
 	})
 
 	t.Run("MultipleConcurrentCancellations", func(t *testing.T) {
-		pool := createTestPool(t, "mc")
+		pool := createTestPoolWithConfig(t, "mc", 3, 3, 1)
 		t.Cleanup(func() {
 			if err := pool.Shutdown(context.Background()); err != nil {
 				t.Errorf("Failed to shutdown pool: %v", err)
