@@ -20,6 +20,11 @@ serviceAccount:
   name: ""
 
 podAnnotations: {}
+# Extra labels to add to pods.
+# WARNING: Do NOT override selector labels (app.kubernetes.io/name,
+# app.kubernetes.io/instance). These are used by spec.selector.matchLabels
+# and overriding them will cause Deployment create/update failures.
+podLabels: {}
 
 podSecurityContext:
   runAsNonRoot: true
