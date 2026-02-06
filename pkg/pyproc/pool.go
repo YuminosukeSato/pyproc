@@ -34,6 +34,7 @@ type Pool struct {
 	workers  []*poolWorker
 	nextIdx  atomic.Uint64
 	shutdown atomic.Bool
+	started  atomic.Bool
 	wg       sync.WaitGroup
 
 	// Backpressure control
@@ -164,6 +165,8 @@ func (p *Pool) Start(ctx context.Context) error {
 
 	// Initial health check
 	p.updateHealthStatus()
+
+	p.started.Store(true)
 	p.logger.Info("worker pool started successfully")
 	return nil
 }
