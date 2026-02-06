@@ -209,7 +209,7 @@ func TestExternalWorker_Start_RetrySuccess(t *testing.T) {
 		if err != nil {
 			return
 		}
-		defer ln.Close()
+		defer ln.Close() //nolint:errcheck
 		for {
 			conn, err := ln.Accept()
 			if err != nil {
