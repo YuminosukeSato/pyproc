@@ -24,6 +24,13 @@ type PoolOptions struct {
 	// spawning child processes. ExternalSocketPaths must list the UDS paths.
 	ExternalMode        bool
 	ExternalSocketPaths []string
+
+	// ExternalMaxRetries controls the number of connection retry attempts
+	// for external workers. If zero, defaults to 10.
+	ExternalMaxRetries int
+	// ExternalRetryInterval is the initial retry interval for external
+	// workers. Each retry doubles the interval. If zero, defaults to 500ms.
+	ExternalRetryInterval time.Duration
 }
 
 type workerHandle interface {
@@ -158,7 +165,12 @@ func newExternalPool(opts PoolOptions, logger *Logger) (*Pool, error) {
 	}
 
 	for i, sockPath := range opts.ExternalSocketPaths {
-		worker := NewExternalWorker(sockPath, opts.WorkerConfig.StartTimeout)
+		worker := NewExternalWorkerWithOptions(ExternalWorkerOptions{
+			SocketPath:     sockPath,
+			ConnectTimeout: opts.WorkerConfig.StartTimeout,
+			MaxRetries:     opts.ExternalMaxRetries,
+			RetryInterval:  opts.ExternalRetryInterval,
+		})
 		pool.workers[i] = &poolWorker{
 			worker:   worker,
 			connPool: make(chan net.Conn, opts.Config.MaxInFlight),
