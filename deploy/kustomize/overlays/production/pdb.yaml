@@ -1,0 +1,11 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pyproc-app
+  labels:
+    app: pyproc-app
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: pyproc-app
