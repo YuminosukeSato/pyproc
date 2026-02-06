@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `PoolConfig.MaxInFlightPerWorker` to cap in-flight requests per worker (default: 1)
+
+### Changed
+- `MaxInFlight` now limits total concurrent requests across the pool
+- Dispatch now enforces per-worker serialization to prevent head-of-line blocking
+
+### Fixed
+- Data race when `Pool.Call` and `Pool.Shutdown` run concurrently
+
 ## [0.1.0] - 2025-08-15
 
 ### Added
@@ -121,8 +131,9 @@ worker.Start(ctx)
 ```go
 pool, _ := pyproc.NewPool(pyproc.PoolOptions{
     Config: pyproc.PoolConfig{
-        Workers:     4,
-        MaxInFlight: 10,
+        Workers:              4,
+        MaxInFlight:          10,
+        MaxInFlightPerWorker: 1,
     },
     WorkerConfig: cfg,
 }, nil)

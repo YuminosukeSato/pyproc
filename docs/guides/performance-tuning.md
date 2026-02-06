@@ -21,10 +21,11 @@ Workers: runtime.NumCPU() * 2
 
 ### 2. Connection Pooling
 
-Use `MaxInFlight` to control backpressure:
+Use `MaxInFlight` (global) and `MaxInFlightPerWorker` (per-worker) to control backpressure:
 
 ```go
-MaxInFlight: 10  // 10 concurrent requests per worker
+MaxInFlight:          10 // global concurrent requests
+MaxInFlightPerWorker: 1  // per-worker in-flight cap
 ```
 
 ### 3. Benchmarking

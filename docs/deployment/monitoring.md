@@ -25,7 +25,7 @@ import (
 
 func main() {
     pool, err := pyproc.NewPoolWithMetrics(pyproc.PoolOptions{
-        Config: pyproc.PoolConfig{Workers: 4, MaxInFlight: 10},
+        Config: pyproc.PoolConfig{Workers: 4, MaxInFlight: 10, MaxInFlightPerWorker: 1},
         WorkerConfig: pyproc.WorkerConfig{
             PythonExec:   "python3",
             WorkerScript: "worker.py",

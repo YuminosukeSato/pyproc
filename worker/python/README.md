@@ -36,8 +36,9 @@ Then call it from Go using pyproc:
 ```go
 pool, _ := pyproc.NewPool(pyproc.PoolOptions{
     Config: pyproc.PoolConfig{
-        Workers:     4,
-        MaxInFlight: 10,
+        Workers:              4,
+        MaxInFlight:          10,
+        MaxInFlightPerWorker: 1,
     },
     WorkerConfig: pyproc.WorkerConfig{
         SocketPath:   "/tmp/pyproc.sock",
