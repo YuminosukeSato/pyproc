@@ -411,10 +411,12 @@ func (p *Pool) Shutdown(_ context.Context) error {
 		p.healthCancel()
 	}
 
-	// Wait for in-flight calls to complete before closing pools
+	// Wait for in-flight calls to complete before closing pools.
+	// The lock ensures all in-progress Call() goroutines have finished
+	// their activeCallsWG.Add(1) before we start waiting.
 	p.callsMu.Lock()
-	p.callsMu.Unlock()
 	p.activeCallsWG.Wait()
+	p.callsMu.Unlock()
 
 	// Close all connection pools
 	for _, pw := range p.workers {
