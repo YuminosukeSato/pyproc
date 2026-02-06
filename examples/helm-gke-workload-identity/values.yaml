@@ -1,0 +1,7 @@
+# GKE Workload Identity Federation values override for pyproc
+# Configures ServiceAccount annotation for GKE Workload Identity.
+
+serviceAccount:
+  create: true
+  annotations:
+    iam.gke.io/gcp-service-account: "SA_NAME@PROJECT_ID.iam.gserviceaccount.com"
