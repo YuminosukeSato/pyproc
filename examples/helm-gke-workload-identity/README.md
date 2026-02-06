@@ -14,8 +14,9 @@ This example configures a pyproc deployment to use GKE Workload Identity Federat
   ```bash
   gcloud iam service-accounts add-iam-policy-binding SA_NAME@PROJECT_ID.iam.gserviceaccount.com \
     --role roles/iam.workloadIdentityUser \
-    --member "serviceAccount:PROJECT_ID.svc.id.goog[NAMESPACE/pyproc]"
+    --member "serviceAccount:PROJECT_ID.svc.id.goog[NAMESPACE/RELEASE_NAME-pyproc]"
   ```
+  Replace RELEASE_NAME with your Helm release name (e.g., myapp). Alternatively, set `serviceAccount.name` in values.yaml to use a fixed name.
 
 ## Usage
 
