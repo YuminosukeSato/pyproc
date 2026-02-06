@@ -49,6 +49,10 @@
          <lastmod>2026-02-06</lastmod>
     </url>
     <url>
+         <loc>https://yuminosukesato.github.io/pyproc/deployment/cloud-authentication/</loc>
+         <lastmod>2026-02-06</lastmod>
+    </url>
+    <url>
          <loc>https://yuminosukesato.github.io/pyproc/deployment/docker/</loc>
          <lastmod>2026-02-06</lastmod>
     </url>
@@ -66,6 +70,10 @@
     </url>
     <url>
          <loc>https://yuminosukesato.github.io/pyproc/deployment/monitoring/</loc>
+         <lastmod>2026-02-06</lastmod>
+    </url>
+    <url>
+         <loc>https://yuminosukesato.github.io/pyproc/deployment/secrets-management/</loc>
          <lastmod>2026-02-06</lastmod>
     </url>
     <url>
