@@ -108,6 +108,8 @@ nav:
   - Deployment:
     - Docker: deployment/docker.md
     - Kubernetes: deployment/kubernetes.md
+    - Cloud Authentication: deployment/cloud-authentication.md
+    - Secrets Management: deployment/secrets-management.md
     - Monitoring: deployment/monitoring.md
     - Troubleshooting: deployment/troubleshooting.md
   - Reference:
