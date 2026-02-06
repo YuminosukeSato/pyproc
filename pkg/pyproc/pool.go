@@ -18,6 +18,12 @@ import (
 type PoolOptions struct {
 	Config       PoolConfig   // Base pool configuration
 	WorkerConfig WorkerConfig // Configuration for each worker
+
+	// ExternalMode, when true, tells the pool to connect to pre-existing
+	// worker processes (e.g. Kubernetes sidecar containers) instead of
+	// spawning child processes. ExternalSocketPaths must list the UDS paths.
+	ExternalMode        bool
+	ExternalSocketPaths []string
 }
 
 type workerHandle interface {
@@ -74,8 +80,14 @@ type HealthStatus struct {
 	LastCheck      time.Time
 }
 
-// NewPool creates a new worker pool
+// NewPool creates a new worker pool. When opts.ExternalMode is true the pool
+// connects to pre-existing worker processes at the paths given in
+// opts.ExternalSocketPaths instead of spawning child processes.
 func NewPool(opts PoolOptions, logger *Logger) (*Pool, error) {
+	if opts.ExternalMode {
+		return newExternalPool(opts, logger)
+	}
+
 	if opts.Config.Workers <= 0 {
 		return nil, errors.New("workers must be > 0")
 	}
@@ -108,6 +120,45 @@ func NewPool(opts PoolOptions, logger *Logger) (*Pool, error) {
 		}
 
 		worker := NewWorker(workerCfg, logger)
+		pool.workers[i] = &poolWorker{
+			worker:   worker,
+			connPool: make(chan net.Conn, opts.Config.MaxInFlight),
+		}
+	}
+
+	return pool, nil
+}
+
+// newExternalPool creates a pool that uses ExternalWorker instances.
+func newExternalPool(opts PoolOptions, logger *Logger) (*Pool, error) {
+	if len(opts.ExternalSocketPaths) == 0 {
+		return nil, errors.New("ExternalSocketPaths must not be empty in ExternalMode")
+	}
+
+	numWorkers := len(opts.ExternalSocketPaths)
+	opts.Config.Workers = numWorkers
+
+	if opts.Config.MaxInFlight <= 0 {
+		opts.Config.MaxInFlight = 10
+	}
+	if opts.Config.HealthInterval <= 0 {
+		opts.Config.HealthInterval = 30 * time.Second
+	}
+
+	if logger == nil {
+		logger = NewLogger(LoggingConfig{Level: "info", Format: "json"})
+	}
+
+	pool := &Pool{
+		opts:           opts,
+		logger:         logger,
+		workers:        make([]*poolWorker, numWorkers),
+		semaphore:      make(chan struct{}, numWorkers*opts.Config.MaxInFlight),
+		activeRequests: make(map[uint64]*activeRequest),
+	}
+
+	for i, sockPath := range opts.ExternalSocketPaths {
+		worker := NewExternalWorker(sockPath, opts.WorkerConfig.StartTimeout)
 		pool.workers[i] = &poolWorker{
 			worker:   worker,
 			connPool: make(chan net.Conn, opts.Config.MaxInFlight),
