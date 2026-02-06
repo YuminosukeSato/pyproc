@@ -495,9 +495,14 @@ Releases are managed by maintainers. Here's how it works:
 
 **Versioning:**
 
-- We follow [Semantic Versioning](https://semver.org/)
-- `MAJOR.MINOR.PATCH` (e.g., `v1.2.3`)
-- Breaking changes require major version bump
+We follow [Semantic Versioning](https://semver.org/). While pyproc is pre-1.0, we apply the following rules:
+
+| Bump | What goes in | Compatibility |
+|------|-------------|---------------|
+| PATCH (`0.x.z`) | Bug fixes, performance tweaks, docs, tests, CI, internal refactors | No public API or config breakage |
+| MINOR (`0.x.0`) | New features (backward-compatible by default) | If something breaks, the release notes list every breaking point with a migration path |
+
+Standard SemVer says anything goes before 1.0. We choose to be stricter so early adopters can depend on pyproc without surprises. After 1.0, the normal rule kicks in: breaking changes only in MAJOR bumps.
 
 ## Getting Help
 
