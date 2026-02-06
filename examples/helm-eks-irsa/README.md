@@ -27,6 +27,12 @@ helm install myapp ./charts/pyproc -f examples/helm-eks-irsa/values.yaml
 - ServiceAccount with `eks.amazonaws.com/role-arn` annotation
 - Links the Kubernetes SA to an IAM role via IRSA
 
+## Token Mount Note
+
+The base Helm chart sets `automountServiceAccountToken: false` on the ServiceAccount. The EKS Pod Identity Webhook injects the OIDC projected token volume independently of this setting, so IRSA works correctly without changing the base chart.
+
+The Kustomize overlay sets `automountServiceAccountToken: true` explicitly for environments where the webhook requires the default token mount.
+
 ## Customization
 
 - `serviceAccount.annotations.eks.amazonaws.com/role-arn`: Target IAM role ARN
