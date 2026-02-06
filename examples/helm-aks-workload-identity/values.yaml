@@ -1,0 +1,10 @@
+# AKS Entra Workload Identity values override for pyproc
+# Configures ServiceAccount annotation and pod label for AKS Workload Identity.
+
+serviceAccount:
+  create: true
+  annotations:
+    azure.workload.identity/client-id: "CLIENT_ID"
+
+podLabels:
+  azure.workload.identity/use: "true"
