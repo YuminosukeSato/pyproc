@@ -134,6 +134,9 @@ func NewPoolWithTransport(opts PoolOptions, logger *Logger) (*PoolWithTransport,
 	if opts.Config.MaxInFlight <= 0 {
 		opts.Config.MaxInFlight = 10
 	}
+	if opts.Config.MaxInFlightPerWorker <= 0 {
+		opts.Config.MaxInFlightPerWorker = 1
+	}
 	if opts.Config.HealthInterval <= 0 {
 		opts.Config.HealthInterval = 30 * time.Second
 	}
@@ -146,7 +149,7 @@ func NewPoolWithTransport(opts PoolOptions, logger *Logger) (*PoolWithTransport,
 		opts:      opts,
 		logger:    logger,
 		workers:   make([]*Worker, opts.Config.Workers),
-		semaphore: make(chan struct{}, opts.Config.Workers*opts.Config.MaxInFlight),
+		semaphore: make(chan struct{}, opts.Config.MaxInFlight),
 	}
 
 	// Create workers (they still manage the Python processes)
