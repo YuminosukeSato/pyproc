@@ -143,3 +143,125 @@ func TestExternalWorker_IsHealthy_AfterListenerClose(t *testing.T) {
 
 // Verify ExternalWorker satisfies workerHandle interface at compile time.
 var _ workerHandle = (*ExternalWorker)(nil)
+
+// --- New tests for ExternalWorkerOptions and retry logic ---
+
+func TestExternalWorkerWithOptions_Defaults(t *testing.T) {
+	w := NewExternalWorkerWithOptions(ExternalWorkerOptions{
+		SocketPath: "/tmp/test.sock",
+	})
+	if w.connectTimeout != defaultConnectTimeout {
+		t.Errorf("expected default connect timeout %v, got %v", defaultConnectTimeout, w.connectTimeout)
+	}
+	if w.maxRetries != defaultMaxRetries {
+		t.Errorf("expected default max retries %d, got %d", defaultMaxRetries, w.maxRetries)
+	}
+	if w.retryInterval != defaultRetryInterval {
+		t.Errorf("expected default retry interval %v, got %v", defaultRetryInterval, w.retryInterval)
+	}
+}
+
+func TestExternalWorkerWithOptions_CustomValues(t *testing.T) {
+	w := NewExternalWorkerWithOptions(ExternalWorkerOptions{
+		SocketPath:     "/tmp/custom.sock",
+		ConnectTimeout: 2 * time.Second,
+		MaxRetries:     3,
+		RetryInterval:  100 * time.Millisecond,
+	})
+	if w.socketPath != "/tmp/custom.sock" {
+		t.Errorf("expected socketPath /tmp/custom.sock, got %q", w.socketPath)
+	}
+	if w.connectTimeout != 2*time.Second {
+		t.Errorf("expected connect timeout 2s, got %v", w.connectTimeout)
+	}
+	if w.maxRetries != 3 {
+		t.Errorf("expected max retries 3, got %d", w.maxRetries)
+	}
+	if w.retryInterval != 100*time.Millisecond {
+		t.Errorf("expected retry interval 100ms, got %v", w.retryInterval)
+	}
+}
+
+func TestNewExternalWorker_BackwardCompat(t *testing.T) {
+	w := NewExternalWorker("/tmp/compat.sock", 3*time.Second)
+	if w.maxRetries != 1 {
+		t.Errorf("expected maxRetries=1 for backward compat, got %d", w.maxRetries)
+	}
+	if w.connectTimeout != 3*time.Second {
+		t.Errorf("expected connectTimeout 3s, got %v", w.connectTimeout)
+	}
+}
+
+func TestExternalWorker_Start_RetrySuccess(t *testing.T) {
+	f, err := os.CreateTemp("/tmp", "pyproc-retry-*.sock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sockPath := f.Name()
+	_ = f.Close()
+	_ = os.Remove(sockPath)
+	t.Cleanup(func() { _ = os.Remove(sockPath) })
+
+	// Start listener after a short delay to simulate slow sidecar startup
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		ln, err := net.Listen("unix", sockPath)
+		if err != nil {
+			return
+		}
+		defer ln.Close()
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_ = conn.Close()
+		}
+	}()
+
+	w := NewExternalWorkerWithOptions(ExternalWorkerOptions{
+		SocketPath:     sockPath,
+		ConnectTimeout: 100 * time.Millisecond,
+		MaxRetries:     5,
+		RetryInterval:  100 * time.Millisecond,
+	})
+	err = w.Start(context.Background())
+	if err != nil {
+		t.Fatalf("expected Start with retry to succeed, got: %v", err)
+	}
+	if ExternalWorkerState(w.state.Load()) != ExternalWorkerRunning {
+		t.Error("expected Running state")
+	}
+}
+
+func TestExternalWorker_Start_AllRetriesFail(t *testing.T) {
+	w := NewExternalWorkerWithOptions(ExternalWorkerOptions{
+		SocketPath:     "/tmp/pyproc-noexist-retry.sock",
+		ConnectTimeout: 50 * time.Millisecond,
+		MaxRetries:     3,
+		RetryInterval:  50 * time.Millisecond,
+	})
+	err := w.Start(context.Background())
+	if err == nil {
+		t.Fatal("expected Start to fail after all retries")
+	}
+}
+
+func TestExternalWorker_Start_ContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		cancel()
+	}()
+
+	w := NewExternalWorkerWithOptions(ExternalWorkerOptions{
+		SocketPath:     "/tmp/pyproc-cancel-retry.sock",
+		ConnectTimeout: 50 * time.Millisecond,
+		MaxRetries:     10,
+		RetryInterval:  200 * time.Millisecond,
+	})
+	err := w.Start(ctx)
+	if err == nil {
+		t.Fatal("expected Start to fail when context cancelled")
+	}
+}
