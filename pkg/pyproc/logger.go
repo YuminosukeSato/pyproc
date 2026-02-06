@@ -108,6 +108,14 @@ func (l *Logger) WithMethod(method string) *Logger {
 	}
 }
 
+// WithRequestID returns a logger with request ID attached
+func (l *Logger) WithRequestID(requestID uint64) *Logger {
+	return &Logger{
+		Logger:       l.With("request_id", requestID),
+		traceEnabled: l.traceEnabled,
+	}
+}
+
 func parseLogLevel(level string) slog.Level {
 	switch level {
 	case "debug":
