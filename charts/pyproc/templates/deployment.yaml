@@ -19,6 +19,9 @@ spec:
       {{- end }}
       labels:
         {{- include "pyproc.labels" . | nindent 8 }}
+        {{- /* WARNING: podLabels are merged after pyproc.labels. Do NOT override
+             selector labels (app.kubernetes.io/name, app.kubernetes.io/instance)
+             or the Deployment will fail to create/update. */ -}}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
