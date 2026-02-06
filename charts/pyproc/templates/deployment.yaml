@@ -48,6 +48,9 @@ spec:
             {{- toYaml .Values.startupProbe | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          env:
+            - name: PYPROC_SOCKET_DIR
+              value: {{ .Values.uds.socketDir | quote }}
           volumeMounts:
             - name: socket-dir
               mountPath: {{ .Values.uds.socketDir }}
@@ -59,7 +62,8 @@ spec:
             medium: {{ .Values.uds.volume.medium }}
             sizeLimit: {{ .Values.uds.volume.sizeLimit }}
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: 64Mi
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
