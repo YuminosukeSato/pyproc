@@ -129,8 +129,9 @@ Enable metrics to identify bottleneck:
 ```go
 pool, _ := pyproc.NewPool(pyproc.PoolOptions{
     Config: pyproc.PoolConfig{
-        Workers:     4,
-        MaxInFlight: 10,
+        Workers:              4,
+        MaxInFlight:          10,
+        MaxInFlightPerWorker: 1,
     },
     // ...
 }, logger)
@@ -553,6 +554,7 @@ When filing an issue, include:
 **Config**:
 - Workers: 4
 - MaxInFlight: 10
+- MaxInFlightPerWorker: 1
 - Socket path: /tmp/pyproc.sock
 
 **Code**:

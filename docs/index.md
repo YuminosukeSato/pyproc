@@ -84,8 +84,9 @@ Just your Go binary + Python scripts — no service mesh, no orchestration
         // Create pool of Python workers
         pool, _ := pyproc.NewPool(pyproc.PoolOptions{
             Config: pyproc.PoolConfig{
-                Workers:     4,  // 4 Python processes
-                MaxInFlight: 10, // Concurrent requests
+                Workers:              4,  // 4 Python processes
+                MaxInFlight:          10, // Global concurrent requests
+                MaxInFlightPerWorker: 1,  // Per-worker in-flight cap
             },
             WorkerConfig: pyproc.WorkerConfig{
                 SocketPath:   "/tmp/pyproc.sock",

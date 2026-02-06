@@ -3,8 +3,11 @@ pool:
   # Number of Python worker processes
   workers: 4
   
-  # Maximum concurrent requests per worker
+  # Maximum concurrent requests across the pool
   max_in_flight: 10
+
+  # Maximum in-flight requests per worker
+  max_in_flight_per_worker: 1
   
   # Worker startup timeout in seconds
   start_timeout: 30

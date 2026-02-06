@@ -86,17 +86,20 @@ Automatic restart is not yet implemented. The `RestartConfig` struct exists in t
 
 ## Backpressure
 
-The Pool uses a semaphore to limit concurrency.
+The Pool uses a global semaphore and a per-worker gate to limit concurrency.
 
 ### Semaphore Mechanism
 
 ```go
-semaphore := make(chan struct{}, Workers*MaxInFlight)
+semaphore := make(chan struct{}, MaxInFlight)
+// per-worker gate
+inflightGate := make(chan struct{}, MaxInFlightPerWorker)
 ```
 
 - `Workers`: Number of worker processes (default: 4)
-- `MaxInFlight`: Maximum concurrent requests per worker (default: 10)
-- Semaphore size = `Workers * MaxInFlight` (default: 40)
+- `MaxInFlight`: Maximum concurrent requests across the pool (default: 10)
+- `MaxInFlightPerWorker`: Maximum in-flight requests per worker (default: 1)
+- Effective max concurrency = `min(MaxInFlight, Workers * MaxInFlightPerWorker)`
 
 ### Behavior When Semaphore Is Full
 
@@ -117,13 +120,14 @@ Callers can control the maximum wait time for backpressure by setting a timeout 
 
 ### Capacity Planning
 
-| Workers | MaxInFlight | Max Concurrent Requests |
-|---------|-------------|------------------------|
-| 4 | 10 | 40 |
-| 8 | 10 | 80 |
-| 4 | 20 | 80 |
+| Workers | MaxInFlight | MaxInFlightPerWorker | Max Concurrent Requests |
+|---------|-------------|----------------------|------------------------|
+| 4 | 10 | 1 | 4 |
+| 8 | 10 | 1 | 8 |
+| 4 | 40 | 1 | 4 |
+| 4 | 40 | 2 | 8 |
 
-Requests exceeding `Workers * MaxInFlight` are queued until capacity becomes available.
+Requests exceeding `min(MaxInFlight, Workers * MaxInFlightPerWorker)` are queued until capacity becomes available.
 
 ## SLO Definition Template
 
