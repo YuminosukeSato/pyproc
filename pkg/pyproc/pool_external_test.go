@@ -3,6 +3,7 @@ package pyproc
 import (
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -10,7 +11,11 @@ import (
 // startTestSocket creates a temporary Unix socket listener for external pool tests.
 func startTestSocket(t *testing.T) (net.Listener, string) {
 	t.Helper()
-	f, err := os.CreateTemp("/tmp", "pyproc-ext-pool-*.sock")
+	baseDir := filepath.Join(os.TempDir(), "pyproc")
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	f, err := os.CreateTemp(baseDir, "pyproc-ext-pool-*.sock")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}

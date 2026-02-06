@@ -54,17 +54,23 @@ func newPoolWithWorkers(cfg PoolConfig, workers []workerHandle) *Pool {
 	if cfg.MaxInFlight == 0 {
 		cfg.MaxInFlight = 1
 	}
+	if cfg.MaxInFlightPerWorker == 0 {
+		cfg.MaxInFlightPerWorker = 1
+	}
 	p := &Pool{
-		opts:           PoolOptions{Config: cfg},
-		logger:         NewLogger(LoggingConfig{Level: "error", Format: "json"}),
-		workers:        make([]*poolWorker, len(workers)),
-		semaphore:      make(chan struct{}, cfg.Workers*cfg.MaxInFlight),
-		activeRequests: make(map[uint64]*activeRequest),
+		opts:            PoolOptions{Config: cfg},
+		logger:          NewLogger(LoggingConfig{Level: "error", Format: "json"}),
+		workers:         make([]*poolWorker, len(workers)),
+		semaphore:       make(chan struct{}, cfg.MaxInFlight),
+		workerAvailable: make(chan struct{}, cfg.Workers*cfg.MaxInFlightPerWorker),
+		shutdownCh:      make(chan struct{}),
+		activeRequests:  make(map[uint64]*activeRequest),
 	}
 	for i, w := range workers {
 		p.workers[i] = &poolWorker{
-			worker:   w,
-			connPool: make(chan net.Conn, cfg.MaxInFlight),
+			worker:       w,
+			connPool:     make(chan net.Conn, cfg.MaxInFlightPerWorker),
+			inflightGate: make(chan struct{}, cfg.MaxInFlightPerWorker),
 		}
 	}
 	return p
@@ -189,8 +195,7 @@ func TestNewPoolDefaultsAndInvalidWorkers(t *testing.T) {
 }
 
 func TestPoolStartPrepopulateAndHealth(t *testing.T) {
-	tmp := t.TempDir()
-	paths := []string{filepath.Join(tmp, "w0.sock"), filepath.Join(tmp, "w1.sock")}
+	paths := []string{tempSocketPath(t, "prepop-w0"), tempSocketPath(t, "prepop-w1")}
 	servers := []func(){
 		startUnixServer(t, paths[0], func(req protocol.Request) *protocol.Response {
 			resp, _ := protocol.NewResponse(req.ID, map[string]string{"ok": "yes"})
@@ -333,7 +338,7 @@ func TestPoolCallConnectError(t *testing.T) {
 }
 
 func TestPoolCallCreatesConnectionAndReturns(t *testing.T) {
-	path := "/tmp/pool-creates-conn.sock"
+	path := tempSocketPath(t, "pool-create-conn")
 	stop := startUnixServer(t, path, func(req protocol.Request) *protocol.Response {
 		resp, _ := protocol.NewResponse(req.ID, map[string]string{"ok": "yes"})
 		return resp
@@ -551,7 +556,7 @@ func TestWorkerIsHealthyStates(t *testing.T) {
 }
 
 func TestPoolConnect(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "connect.sock")
+	path := tempSocketPath(t, "connect")
 	stop := startUnixServer(t, path, func(req protocol.Request) *protocol.Response {
 		resp, _ := protocol.NewResponse(req.ID, map[string]string{"ok": "yes"})
 		return resp
