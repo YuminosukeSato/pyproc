@@ -203,21 +203,29 @@ func TestExternalWorker_Start_RetrySuccess(t *testing.T) {
 	t.Cleanup(func() { _ = os.Remove(sockPath) })
 
 	// Start listener after a short delay to simulate slow sidecar startup
+	lnCh := make(chan net.Listener, 1)
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		ln, err := net.Listen("unix", sockPath)
-		if err != nil {
+		ln, listenErr := net.Listen("unix", sockPath)
+		if listenErr != nil {
 			return
 		}
-		defer ln.Close() //nolint:errcheck
+		lnCh <- ln
 		for {
-			conn, err := ln.Accept()
-			if err != nil {
+			conn, acceptErr := ln.Accept()
+			if acceptErr != nil {
 				return
 			}
 			_ = conn.Close()
 		}
 	}()
+	t.Cleanup(func() {
+		select {
+		case ln := <-lnCh:
+			_ = ln.Close()
+		default:
+		}
+	})
 
 	w := NewExternalWorkerWithOptions(ExternalWorkerOptions{
 		SocketPath:     sockPath,

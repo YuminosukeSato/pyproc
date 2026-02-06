@@ -20,8 +20,10 @@ const (
 
 const (
 	defaultConnectTimeout = 5 * time.Second
-	defaultMaxRetries     = 10
-	defaultRetryInterval  = 500 * time.Millisecond
+	// defaultMaxRetries with defaultRetryInterval yields ~4 min total wait
+	// (500ms + 1s + 2s + 4s + 8s + 16s + 32s + 64s + 128s ≈ 255.5s).
+	defaultMaxRetries    = 10
+	defaultRetryInterval = 500 * time.Millisecond
 )
 
 // ExternalWorkerOptions configures an ExternalWorker.
@@ -87,6 +89,10 @@ func NewExternalWorkerWithOptions(opts ExternalWorkerOptions) *ExternalWorker {
 // with exponential backoff according to the configured MaxRetries and
 // RetryInterval. It does not spawn a process; the worker must already be
 // running.
+//
+// In production, callers should pass a context with a deadline to bound the
+// total wait time (e.g. context.WithTimeout). Without a deadline, Start may
+// block for the full backoff duration (~4 min with defaults).
 func (w *ExternalWorker) Start(ctx context.Context) error {
 	var lastErr error
 	interval := w.retryInterval
