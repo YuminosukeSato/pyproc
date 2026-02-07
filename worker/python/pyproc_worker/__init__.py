@@ -100,6 +100,7 @@ class Worker:
         self.codec = get_codec(codec_type)
         self.conn = None
         self.framed_conn = None
+        self._current_request_id: int | None = None
         self.tracing = get_tracing()
         self.cancellation_manager = CancellationManager()
         logger.info("Using codec: %s", self.codec.name)
@@ -140,7 +141,6 @@ class Worker:
 
     def _handle_connection(self) -> None:
         """Handle requests on the current connection."""
-        current_request_id = None
         while True:
             try:
                 # Read message
@@ -148,12 +148,12 @@ class Worker:
                 if not message:
                     logger.info("Connection closed by client")
                     # If we have an active request, mark it as cancelled
-                    if current_request_id is not None:
+                    if self._current_request_id is not None:
                         self.cancellation_manager.cancel_request(
-                            current_request_id,
+                            self._current_request_id,
                             "connection closed",
                         )
-                        current_request_id = None
+                        self._current_request_id = None
                     break
 
                 # Parse message
@@ -180,13 +180,13 @@ class Worker:
                 logger.debug(f"Received request: {request}")
 
                 # Track current request ID for cancellation
-                current_request_id = request.get("id", 0)
+                self._current_request_id = request.get("id", 0)
 
                 # Process request
                 response = self._process_request(request)
 
                 # Clear current request ID after processing
-                current_request_id = None
+                self._current_request_id = None
 
                 # Send response in legacy format for now
                 # NOTE: Will switch to wrapped format once Go side is updated
