@@ -55,6 +55,10 @@ func TestNewProvider_Defaults(t *testing.T) {
 
 	// Should not panic with default config
 	tracer := provider.Tracer("test")
+	if tracer == nil {
+		t.Fatal("tracer should not be nil")
+	}
+
 	ctx := context.Background()
 	_, span := tracer.Start(ctx, "test-span")
 	span.End()

@@ -7,6 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // TestTracerProvider_Initialization verifies that the telemetry provider initializes correctly
@@ -224,11 +225,19 @@ func TestProvider_ResourceAttributes(t *testing.T) {
 		_ = shutdown(context.Background()) //nolint:errcheck
 	}()
 
+	if !provider.IsEnabled() {
+		t.Fatal("provider should be enabled")
+	}
+
 	// Create a span and verify resource attributes
 	tracer := provider.Tracer("test")
 	ctx, span := tracer.Start(context.Background(), "test-span")
-	span.End()
-	_ = ctx
+	defer span.End()
+
+	spanCtx := oteltrace.SpanContextFromContext(ctx)
+	if !spanCtx.IsValid() {
+		t.Error("span context should be valid")
+	}
 
 	// Note: We can't easily inspect resource attributes in this test
 	// without accessing internal provider state. The actual verification
