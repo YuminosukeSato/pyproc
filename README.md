@@ -158,6 +158,7 @@ For detailed threat model, security architecture, and best practices, see [SECUR
 - **Minimal Overhead** - 45μs p50 latency, 200,000+ req/s with 8 workers
 - **Production Ready** - Health checks, graceful shutdown, automatic restarts
 - **Easy Deployment** - Single binary + Python scripts, no service mesh needed
+- **Full Observability** - OpenTelemetry tracing, Prometheus metrics, structured logging (v0.7.1+)
 
 ## 🚀 Quick Start (5 minutes)
 
@@ -263,6 +264,77 @@ make demo
 ```
 
 This starts a Python worker from examples/basic/worker.py and calls it from Go. The example adjusts PYTHONPATH to import the local worker/python/pyproc_worker package.
+
+## 📊 Observability (v0.7.1+)
+
+pyproc includes built-in support for distributed tracing, metrics, and structured logging.
+
+### Distributed Tracing with OpenTelemetry
+
+```go
+import (
+    "context"
+    "github.com/YuminosukeSato/pyproc/pkg/pyproc"
+    "github.com/YuminosukeSato/pyproc/pkg/pyproc/telemetry"
+)
+
+func main() {
+    // Initialize telemetry provider
+    provider, shutdown := telemetry.NewProvider(telemetry.Config{
+        ServiceName:  "my-service",
+        Enabled:      true,
+        SamplingRate: 0.01,        // 1% sampling
+        ExporterType: "stdout",    // or "otlp" for production
+    })
+    defer shutdown(context.Background())
+
+    // Create pool
+    pool, _ := pyproc.NewPool(poolOpts, logger)
+
+    // Attach tracer (opt-in)
+    pool.WithTracer(provider.Tracer("my-service"))
+
+    // All calls are now traced automatically
+    ctx := context.Background()
+    result, _ := pyproc.CallTyped[Req, Resp](ctx, pool, "predict", request)
+}
+```
+
+**Key features:**
+- ✅ Automatic span creation for all `Pool.Call()` invocations
+- ✅ W3C Trace Context propagation over Unix Domain Sockets
+- ✅ <1% overhead with 1% sampling (production target)
+- ✅ Zero overhead when disabled (no-op mode)
+- ✅ Fully backward compatible (opt-in via `WithTracer()`)
+
+### Metrics
+
+Built-in Prometheus metrics:
+
+```go
+// Expose metrics endpoint
+http.Handle("/metrics", promhttp.Handler())
+
+// Metrics automatically collected:
+// - pyproc_pool_calls_total
+// - pyproc_pool_call_duration_seconds
+// - pyproc_pool_errors_total
+// - pyproc_worker_active_connections
+```
+
+### Structured Logging
+
+```go
+import "log/slog"
+
+logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+    Level: slog.LevelInfo,
+}))
+
+pool, _ := pyproc.NewPool(poolOpts, logger)
+```
+
+For comprehensive observability documentation, see [docs/observability.md](docs/observability.md).
 
 ## 📚 Detailed Usage Guide
 
