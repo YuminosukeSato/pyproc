@@ -66,7 +66,9 @@ func TestPool_TracerSetAndGet(t *testing.T) {
 
 	// Create a tracer
 	tp := trace.NewTracerProvider()
-	defer tp.Shutdown(context.Background())
+	defer func() {
+		_ = tp.Shutdown(context.Background()) //nolint:errcheck
+	}()
 	tracer := tp.Tracer("test")
 
 	// Set tracer

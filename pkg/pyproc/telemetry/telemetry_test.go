@@ -12,7 +12,9 @@ func TestNewProvider_Disabled(t *testing.T) {
 		ServiceName: "test",
 		Enabled:     false,
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	if provider.IsEnabled() {
 		t.Error("provider should be disabled")
@@ -29,7 +31,9 @@ func TestNewProvider_Enabled(t *testing.T) {
 		ServiceName: "test",
 		Enabled:     true,
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	if !provider.IsEnabled() {
 		t.Error("provider should be enabled")
@@ -45,7 +49,9 @@ func TestNewProvider_Defaults(t *testing.T) {
 	provider, shutdown := NewProvider(Config{
 		Enabled: true,
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	// Should not panic with default config
 	tracer := provider.Tracer("test")
@@ -138,7 +144,9 @@ func TestInjectTraceContext_ValidSpan(t *testing.T) {
 		ServiceName: "test",
 		Enabled:     true,
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	tracer := provider.Tracer("test")
 	ctx, span := tracer.Start(context.Background(), "test-span")
@@ -178,7 +186,9 @@ func TestRoundTrip_InjectAndExtract(t *testing.T) {
 		ServiceName: "test",
 		Enabled:     true,
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	tracer := provider.Tracer("test")
 	ctx, span := tracer.Start(context.Background(), "test-span")
@@ -242,7 +252,9 @@ func BenchmarkInjectTraceContext(b *testing.B) {
 		ServiceName: "bench",
 		Enabled:     true,
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	tracer := provider.Tracer("bench")
 	ctx, span := tracer.Start(context.Background(), "bench-span")
@@ -272,7 +284,9 @@ func BenchmarkNoOpTracer(b *testing.B) {
 		ServiceName: "bench",
 		Enabled:     false, // No-op mode
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	tracer := provider.Tracer("bench")
 	ctx := context.Background()

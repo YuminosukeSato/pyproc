@@ -58,7 +58,9 @@ func TestTracerProvider_Initialization(t *testing.T) {
 			if provider == nil {
 				t.Fatal("provider should not be nil")
 			}
-			defer shutdown(context.Background())
+			defer func() {
+				_ = shutdown(context.Background()) //nolint:errcheck
+			}()
 
 			// Verify provider state
 			if tt.config.Enabled && !provider.IsEnabled() {
@@ -130,7 +132,9 @@ func TestNoOp_ZeroOverhead(t *testing.T) {
 		Enabled:     false,
 		ServiceName: "test",
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	if provider.IsEnabled() {
 		t.Fatal("provider should be disabled")
@@ -166,7 +170,9 @@ func TestProvider_EnabledVsDisabled(t *testing.T) {
 		Enabled:     false,
 		ServiceName: "test",
 	})
-	defer noopShutdown(context.Background())
+	defer func() {
+		_ = noopShutdown(context.Background()) //nolint:errcheck
+	}()
 
 	noopTracer := noopProvider.Tracer("test")
 	ctx := context.Background()
@@ -184,7 +190,9 @@ func TestProvider_EnabledVsDisabled(t *testing.T) {
 	enabledTP := trace.NewTracerProvider(
 		trace.WithSyncer(exporter),
 	)
-	defer enabledTP.Shutdown(context.Background())
+	defer func() {
+		_ = enabledTP.Shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	enabledTracer := enabledTP.Tracer("test")
 
@@ -212,7 +220,9 @@ func TestProvider_ResourceAttributes(t *testing.T) {
 		Enabled:     true,
 		ServiceName: "my-service",
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	// Create a span and verify resource attributes
 	tracer := provider.Tracer("test")
@@ -260,7 +270,9 @@ func TestProvider_Sampling(t *testing.T) {
 					}(),
 				),
 			)
-			defer tp.Shutdown(context.Background())
+			defer func() {
+				_ = tp.Shutdown(context.Background()) //nolint:errcheck
+			}()
 
 			tracer := tp.Tracer("test")
 			ctx, span := tracer.Start(context.Background(), "test-span")
