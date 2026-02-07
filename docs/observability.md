@@ -155,6 +155,42 @@ export PYPROC_TELEMETRY_EXPORTER_TYPE="otlp"
 export PYPROC_TELEMETRY_SAMPLING_RATE="1.0"
 ```
 
+## Backward Compatibility
+
+### Protocol Changes
+
+The observability integration (v0.7.1+) adds a `headers` field to the internal `Request` structure for W3C Trace Context propagation:
+
+```go
+type Request struct {
+    // ... existing fields ...
+    Headers map[string]string `json:"headers,omitempty"`  // v0.7.1+
+}
+```
+
+**Compatibility guarantees:**
+
+- **Old Python workers (< v0.7.1)**: Will ignore the `headers` field due to `omitempty` JSON tag. All existing functionality continues to work.
+- **Old Go clients (< v0.7.1)**: Will not send trace context headers. Python workers will function normally without tracing.
+- **Full tracing**: Requires both Go pool and Python worker to be v0.7.1 or later.
+
+### Opt-In Design
+
+Observability features are opt-in and do not affect existing code:
+
+- Tracing requires explicit `pool.WithTracer()` call
+- Without tracer attachment, Pool operates with zero overhead (no-op mode)
+- Metrics collection is passive and does not modify request/response flow
+- Logging remains unchanged for existing applications
+
+### Migration Path
+
+1. **Phase 1**: Update Go pool to v0.7.1 (tracing disabled by default)
+2. **Phase 2**: Update Python workers to v0.7.1 when ready
+3. **Phase 3**: Enable tracing by calling `pool.WithTracer()` after testing
+
+No breaking changes to existing APIs or protocols.
+
 ## Distributed Tracing
 
 ### How Tracing Works
