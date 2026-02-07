@@ -34,7 +34,9 @@ func BenchmarkPool_Call_TracingDisabled(b *testing.B) {
 		ServiceName: "bench-disabled",
 		Enabled:     false, // No-op mode
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	pool := createTestPool(b, 4, "/tmp/bench-otel-disabled")
 	defer func() { _ = pool.Shutdown(context.Background()) }()
@@ -61,7 +63,9 @@ func BenchmarkPool_Call_TracingEnabled_NoSampling(b *testing.B) {
 		SamplingRate: 0.0, // Never sample
 		ExporterType: "stdout",
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	pool := createTestPool(b, 4, "/tmp/bench-otel-0pct")
 	defer func() { _ = pool.Shutdown(context.Background()) }()
@@ -88,7 +92,9 @@ func BenchmarkPool_Call_TracingEnabled_1pctSampling(b *testing.B) {
 		SamplingRate: 0.01, // 1% sampling
 		ExporterType: "stdout",
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	pool := createTestPool(b, 4, "/tmp/bench-otel-1pct")
 	defer func() { _ = pool.Shutdown(context.Background()) }()
@@ -115,7 +121,9 @@ func BenchmarkPool_Call_TracingEnabled_100pctSampling(b *testing.B) {
 		SamplingRate: 1.0, // 100% sampling
 		ExporterType: "stdout",
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	pool := createTestPool(b, 4, "/tmp/bench-otel-100pct")
 	defer func() { _ = pool.Shutdown(context.Background()) }()
@@ -171,7 +179,9 @@ func BenchmarkPool_Call_ObservabilityLatency(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			// Setup tracer provider based on tc configuration
 			_, shutdown := telemetry.NewProvider(tc.config)
-			defer shutdown(context.Background())
+			defer func() {
+				_ = shutdown(context.Background()) //nolint:errcheck
+			}()
 
 			pool := createTestPool(b, 4, tc.socketPrefix)
 			defer func() { _ = pool.Shutdown(context.Background()) }()
@@ -271,7 +281,9 @@ func BenchmarkPool_Call_ObservabilityOverhead(b *testing.B) {
 		b.Run(cfg.name, func(b *testing.B) {
 			// Setup appropriate tracer provider based on configuration
 			_, shutdown := telemetry.NewProvider(cfg.config)
-			defer shutdown(context.Background())
+			defer func() {
+				_ = shutdown(context.Background()) //nolint:errcheck
+			}()
 
 			pool := createTestPool(b, 4, cfg.socketPrefix)
 			defer func() { _ = pool.Shutdown(context.Background()) }()
@@ -353,7 +365,9 @@ func BenchmarkPool_Call_ObservabilityMemory(b *testing.B) {
 		b.Run(cfg.name, func(b *testing.B) {
 			// Setup appropriate tracer provider
 			_, shutdown := telemetry.NewProvider(cfg.config)
-			defer shutdown(context.Background())
+			defer func() {
+				_ = shutdown(context.Background()) //nolint:errcheck
+			}()
 
 			pool := createTestPool(b, 4, cfg.socketPrefix)
 			defer func() { _ = pool.Shutdown(context.Background()) }()
@@ -401,7 +415,9 @@ func BenchmarkTracing_PureOverhead(b *testing.B) {
 					SamplingRate: cfg.sampling,
 					ExporterType: "stdout",
 				})
-				defer shutdown(context.Background())
+				defer func() {
+					_ = shutdown(context.Background()) //nolint:errcheck
+				}()
 			}
 
 			tracer := provider.Tracer("bench")
@@ -426,7 +442,9 @@ func BenchmarkPool_Call_ObservabilityStats(b *testing.B) {
 			SamplingRate: 0.01,
 			ExporterType: "stdout",
 		})
-		defer shutdown(context.Background())
+		defer func() {
+			_ = shutdown(context.Background()) //nolint:errcheck
+		}()
 
 		pool := createTestPool(b, 4, "/tmp/bench-otel-stats")
 		defer func() { _ = pool.Shutdown(context.Background()) }()

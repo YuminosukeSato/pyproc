@@ -300,7 +300,9 @@ func BenchmarkProvider_SpanCreation(b *testing.B) {
 		Enabled:     true,
 		ServiceName: "bench",
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	tracer := provider.Tracer("bench")
 	ctx := context.Background()
@@ -320,7 +322,9 @@ func BenchmarkProvider_NoOp(b *testing.B) {
 		Enabled:     false,
 		ServiceName: "bench",
 	})
-	defer shutdown(context.Background())
+	defer func() {
+		_ = shutdown(context.Background()) //nolint:errcheck
+	}()
 
 	tracer := provider.Tracer("bench")
 	ctx := context.Background()
