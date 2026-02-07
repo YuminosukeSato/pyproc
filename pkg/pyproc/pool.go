@@ -12,6 +12,10 @@ import (
 
 	"github.com/YuminosukeSato/pyproc/internal/framing"
 	"github.com/YuminosukeSato/pyproc/internal/protocol"
+	"github.com/YuminosukeSato/pyproc/pkg/pyproc/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // PoolOptions provides additional options for creating a pool
@@ -65,6 +69,9 @@ type Pool struct {
 	// Request tracking for cancellation
 	activeRequests   map[uint64]*activeRequest
 	activeRequestsMu sync.RWMutex
+
+	// Observability
+	tracer trace.Tracer
 }
 
 // activeRequest tracks an in-flight request for cancellation support
@@ -197,6 +204,14 @@ func newExternalPool(opts PoolOptions, logger *Logger) (*Pool, error) {
 	return pool, nil
 }
 
+// WithTracer sets the OpenTelemetry tracer for the pool.
+// This enables distributed tracing for all Pool.Call() operations.
+// If not set, no tracing will be performed (zero overhead).
+func (p *Pool) WithTracer(tracer trace.Tracer) *Pool {
+	p.tracer = tracer
+	return p
+}
+
 // Start starts all workers in the pool
 func (p *Pool) Start(ctx context.Context) error {
 	p.logger.Info("starting worker pool", "workers", p.opts.Config.Workers)
@@ -253,10 +268,30 @@ func (p *Pool) Start(ctx context.Context) error {
 
 // Call invokes a method on one of the workers using round-robin
 func (p *Pool) Call(ctx context.Context, method string, input interface{}, output interface{}) error {
+	// Start tracing span if tracer is configured
+	var span trace.Span
+	if p.tracer != nil {
+		ctx, span = p.tracer.Start(ctx, "pyproc.Pool.Call",
+			trace.WithSpanKind(trace.SpanKindClient),
+			trace.WithAttributes(
+				attribute.String("pyproc.method", method),
+			),
+		)
+		defer func() {
+			// Span will be ended here, status is set in error paths
+			span.End()
+		}()
+	}
+
 	p.callsMu.Lock()
 	if p.shutdown.Load() {
 		p.callsMu.Unlock()
-		return errors.New("pool is shut down")
+		err := errors.New("pool is shut down")
+		if span != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		return err
 	}
 	p.activeCallsWG.Add(1)
 	p.callsMu.Unlock()
@@ -267,13 +302,27 @@ func (p *Pool) Call(ctx context.Context, method string, input interface{}, outpu
 	case p.semaphore <- struct{}{}:
 		defer func() { <-p.semaphore }()
 	case <-ctx.Done():
-		return ctx.Err()
+		err := ctx.Err()
+		if span != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		return err
 	case <-p.shutdownCh:
-		return errors.New("pool is shut down")
+		err := errors.New("pool is shut down")
+		if span != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
+		return err
 	}
 
 	pw, workerIdx, err := p.acquireWorker(ctx)
 	if err != nil {
+		if span != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		}
 		return err
 	}
 	defer func() {
@@ -281,12 +330,22 @@ func (p *Pool) Call(ctx context.Context, method string, input interface{}, outpu
 		p.signalWorkerAvailable()
 	}()
 
+	// Add worker ID to span attributes
+	if span != nil {
+		span.SetAttributes(attribute.Int("pyproc.worker_id", workerIdx))
+	}
+
 	// Get connection from pool
 	var conn net.Conn
 	select {
 	case pooledConn, ok := <-pw.connPool:
 		if !ok {
-			return errors.New("connection pool closed")
+			err := errors.New("connection pool closed")
+			if span != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+			}
+			return err
 		}
 		conn = pooledConn
 	default:
@@ -294,6 +353,10 @@ func (p *Pool) Call(ctx context.Context, method string, input interface{}, outpu
 		var err error
 		conn, err = p.connect(pw.worker.GetSocketPath())
 		if err != nil {
+			if span != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, "failed to connect")
+			}
 			return fmt.Errorf("failed to connect: %w", err)
 		}
 	}
@@ -340,7 +403,19 @@ func (p *Pool) Call(ctx context.Context, method string, input interface{}, outpu
 	// Send request
 	req, err := protocol.NewRequest(reqID, method, input)
 	if err != nil {
+		if span != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to create request")
+		}
 		return err
+	}
+
+	// Inject trace context into request headers if tracing is enabled
+	if span != nil {
+		if req.Headers == nil {
+			req.Headers = make(map[string]string)
+		}
+		telemetry.InjectTraceContext(ctx, req.Headers)
 	}
 
 	// For now, send in legacy format for backward compatibility
@@ -348,12 +423,20 @@ func (p *Pool) Call(ctx context.Context, method string, input interface{}, outpu
 	framer := framing.NewFramer(conn)
 	reqData, err := req.Marshal()
 	if err != nil {
+		if span != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to marshal request")
+		}
 		return err
 	}
 
 	if err := framer.WriteMessage(reqData); err != nil {
 		connClosed = true
 		_ = conn.Close() // Connection is bad, don't return to pool
+		if span != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to send request")
+		}
 		return err
 	}
 
@@ -364,10 +447,19 @@ func (p *Pool) Call(ctx context.Context, method string, input interface{}, outpu
 		select {
 		case <-ctx.Done():
 			connClosed = true
-			return ctx.Err()
+			err := ctx.Err()
+			if span != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+			}
+			return err
 		default:
 			connClosed = true
 			_ = conn.Close() // Connection is bad, don't return to pool
+			if span != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, "failed to read response")
+			}
 			return err
 		}
 	}
@@ -376,11 +468,21 @@ func (p *Pool) Call(ctx context.Context, method string, input interface{}, outpu
 	// TODO: Switch to wrapped format once Python side is fully tested
 	var resp protocol.Response
 	if err := resp.Unmarshal(respData); err != nil {
-		return fmt.Errorf("failed to unmarshal response: %w", err)
+		err := fmt.Errorf("failed to unmarshal response: %w", err)
+		if span != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "unmarshal failed")
+		}
+		return err
 	}
 
 	if !resp.OK {
-		return resp.Error()
+		err := resp.Error()
+		if span != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "python worker error")
+		}
+		return err
 	}
 
 	// Handle special methods for testing
@@ -394,7 +496,20 @@ func (p *Pool) Call(ctx context.Context, method string, input interface{}, outpu
 		}
 	}
 
-	return resp.UnmarshalBody(output)
+	err = resp.UnmarshalBody(output)
+	if err != nil {
+		if span != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to unmarshal output")
+		}
+		return err
+	}
+
+	// Success: set span status to OK
+	if span != nil {
+		span.SetStatus(codes.Ok, "")
+	}
+	return nil
 }
 
 // Shutdown gracefully shuts down all workers

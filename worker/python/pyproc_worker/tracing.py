@@ -204,6 +204,26 @@ def get_tracing() -> WorkerTracing:
     return _global_tracing
 
 
+def extract_trace_context(request: dict[str, Any]) -> Any | None:
+    """Extract W3C Trace Context from Go request.
+
+    Args:
+        request: Dictionary containing traceparent and tracestate keys
+
+    Returns:
+        OpenTelemetry Context object for span creation, or None if tracing disabled
+
+    """
+    if not HAS_OTEL:
+        return None
+
+    carrier = {
+        "traceparent": request.get("traceparent", ""),
+        "tracestate": request.get("tracestate", ""),
+    }
+    return extract(carrier)
+
+
 def trace_method(func):
     """Trace a method execution.
 

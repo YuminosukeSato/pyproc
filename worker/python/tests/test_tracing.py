@@ -4,7 +4,13 @@ import os
 
 import pytest
 
-from pyproc_worker.tracing import HAS_OTEL, TracingManager, WorkerTracing, trace_method
+from pyproc_worker.tracing import (
+    HAS_OTEL,
+    TracingManager,
+    WorkerTracing,
+    extract_trace_context,
+    trace_method,
+)
 
 
 def test_tracing_disabled_without_otel() -> None:
@@ -118,3 +124,52 @@ def test_extract_inject_context() -> None:
     context = manager.extract_context(carrier)
     # Context could be None or an empty context
     assert context is not None or not manager.enabled
+
+
+def test_extract_trace_context_valid() -> None:
+    """Test extract_trace_context with valid traceparent."""
+    if not HAS_OTEL:
+        pytest.skip("OpenTelemetry not installed")
+
+    request = {
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "tracestate": "congo=t61rcWkgMzE",
+    }
+    context = extract_trace_context(request)
+    assert context is not None
+
+
+def test_extract_trace_context_missing_traceparent() -> None:
+    """Test extract_trace_context with missing traceparent."""
+    if not HAS_OTEL:
+        pytest.skip("OpenTelemetry not installed")
+
+    # Should not crash when traceparent is missing
+    request = {}
+    context = extract_trace_context(request)
+    # Function should handle gracefully (return context with empty values)
+    assert context is not None
+
+
+def test_extract_trace_context_partial() -> None:
+    """Test extract_trace_context with only traceparent (no tracestate)."""
+    if not HAS_OTEL:
+        pytest.skip("OpenTelemetry not installed")
+
+    request = {
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+    }
+    context = extract_trace_context(request)
+    assert context is not None
+
+
+def test_extract_trace_context_without_otel() -> None:
+    """Test extract_trace_context when OpenTelemetry is not available."""
+    if HAS_OTEL:
+        pytest.skip("OpenTelemetry is installed, skipping negative test")
+
+    request = {
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+    }
+    context = extract_trace_context(request)
+    assert context is None
