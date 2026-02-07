@@ -1,5 +1,9 @@
 """Test codec functionality."""
 
+import importlib
+import importlib.abc
+import sys
+
 import pytest
 
 from pyproc_worker.codec import (
@@ -97,3 +101,53 @@ def test_invalid_codec_type() -> None:
     """Test that invalid codec type raises error."""
     with pytest.raises(ValueError, match="Unknown codec type"):
         get_codec("invalid")
+
+
+class _ImportBlocker(importlib.abc.MetaPathFinder):
+    """Block imports for optional codec dependencies."""
+
+    def find_spec(self, fullname, _path, _target=None):
+        if fullname in {"orjson", "msgspec"}:
+            raise ImportError("blocked")
+
+
+def test_codec_importerror_paths() -> None:
+    """Optional codec imports should fail gracefully when blocked."""
+    from pyproc_worker import codec
+
+    blocker = _ImportBlocker()
+    sys.meta_path.insert(0, blocker)
+    sys.modules.pop("orjson", None)
+    sys.modules.pop("msgspec", None)
+
+    try:
+        reloaded = importlib.reload(codec)
+        assert reloaded.HAS_ORJSON is False
+        assert reloaded.HAS_MSGSPEC is False
+        assert isinstance(reloaded.get_codec("auto"), reloaded.JSONCodec)
+
+        with pytest.raises(ImportError, match="orjson is not installed"):
+            reloaded.OrjsonCodec()
+
+        with pytest.raises(ImportError, match="msgspec is not installed"):
+            reloaded.MsgspecCodec()
+
+        with pytest.raises(ImportError, match="msgspec is not installed"):
+            reloaded.MsgpackCodec()
+    finally:
+        sys.meta_path.remove(blocker)
+        importlib.reload(codec)
+
+
+def test_get_codec_auto_prefers_orjson_when_msgspec_disabled(monkeypatch) -> None:
+    """Auto should select orjson when msgspec is disabled but orjson is available."""
+    from pyproc_worker import codec
+
+    if not codec.HAS_ORJSON:
+        pytest.skip("orjson not installed")
+
+    monkeypatch.setattr(codec, "HAS_MSGSPEC", False)
+    monkeypatch.setattr(codec, "msgspec_json_module", None)
+
+    selected = codec.get_codec("auto")
+    assert selected.name == "json-orjson"
