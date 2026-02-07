@@ -1,6 +1,9 @@
 """Test OpenTelemetry tracing support."""
 
+import importlib
+import importlib.abc
 import os
+import sys
 
 import pytest
 
@@ -173,3 +176,99 @@ def test_extract_trace_context_without_otel() -> None:
     }
     context = extract_trace_context(request)
     assert context is None
+
+
+class _OtelBlocker(importlib.abc.MetaPathFinder):
+    """Block OpenTelemetry imports for negative-path testing."""
+
+    def find_spec(self, fullname, _path, _target=None):
+        if fullname.startswith("opentelemetry"):
+            raise ImportError("blocked")
+
+
+def test_tracing_importerror_paths() -> None:
+    """ImportError paths should disable tracing cleanly."""
+    from pyproc_worker import tracing
+
+    blocker = _OtelBlocker()
+    sys.meta_path.insert(0, blocker)
+    for name in list(sys.modules):
+        if name.startswith("opentelemetry"):
+            del sys.modules[name]
+
+    try:
+        reloaded = importlib.reload(tracing)
+        assert reloaded.HAS_OTEL is False
+        manager = reloaded.TracingManager(enabled=True)
+        assert manager.enabled is False
+        assert (
+            reloaded.extract_trace_context(
+                {
+                    "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+                },
+            )
+            is None
+        )
+    finally:
+        sys.meta_path.remove(blocker)
+        importlib.reload(tracing)
+
+
+def test_tracing_manager_console_exporter(monkeypatch) -> None:
+    """Console exporter path should initialize when enabled."""
+    if not HAS_OTEL:
+        pytest.skip("OpenTelemetry not installed")
+
+    monkeypatch.setenv("PYPROC_TRACE_CONSOLE", "true")
+
+    from pyproc_worker import tracing
+
+    class DummyExporter:
+        def export(self, _spans):
+            return None
+
+        def shutdown(self):
+            return None
+
+        def force_flush(self, _timeout_millis=None):
+            return True
+
+    monkeypatch.setattr(tracing, "ConsoleSpanExporter", DummyExporter)
+
+    manager = TracingManager(enabled=True, service_name="console-test")
+    assert manager.enabled is True
+    assert manager.tracer is not None
+
+
+def test_span_extracts_trace_context() -> None:
+    """Span should handle traceparent and tracestate context."""
+    if not HAS_OTEL:
+        pytest.skip("OpenTelemetry not installed")
+
+    manager = TracingManager(enabled=True, service_name="context-test")
+    context = {
+        "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        "tracestate": "congo=t61rcWkgMzE",
+    }
+    with manager.span("test-span", context=context) as span:
+        assert span is not None
+
+
+def test_extract_context_returns_none_when_disabled() -> None:
+    """extract_context should return None when disabled."""
+    manager = TracingManager(enabled=False)
+    assert manager.extract_context({"traceparent": "x"}) is None
+
+
+def test_add_response_headers_when_enabled(monkeypatch) -> None:
+    """add_response_headers should inject headers when enabled."""
+    if not HAS_OTEL:
+        pytest.skip("OpenTelemetry not installed")
+
+    monkeypatch.setenv("PYPROC_TRACING_ENABLED", "true")
+    tracing = WorkerTracing(worker_id="header-test")
+    response = {"id": 1, "ok": True, "body": {}}
+
+    tracing.add_response_headers(response)
+
+    assert "headers" in response
