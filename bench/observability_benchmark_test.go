@@ -213,6 +213,9 @@ func BenchmarkPool_Call_ObservabilityLatency(b *testing.B) {
 
 // BenchmarkPool_Call_ObservabilityOverhead measures the overhead of various
 // tracing configurations compared to baseline. This is used for CI gates.
+//
+// Note: Each sub-benchmark includes warmup to eliminate cold start effects
+// from Python worker initialization, ensuring accurate overhead measurement.
 func BenchmarkPool_Call_ObservabilityOverhead(b *testing.B) {
 	configurations := []struct {
 		name         string
@@ -276,6 +279,11 @@ func BenchmarkPool_Call_ObservabilityOverhead(b *testing.B) {
 			ctx := context.Background()
 			req := map[string]interface{}{"value": 42}
 			var resp map[string]interface{}
+
+			// Warmup: 100 calls to stabilize pool and eliminate cold start effects
+			for w := 0; w < 100; w++ {
+				_ = pool.Call(ctx, "predict", req, &resp)
+			}
 
 			b.ResetTimer()
 			for j := 0; j < b.N; j++ {
@@ -361,6 +369,48 @@ func BenchmarkPool_Call_ObservabilityMemory(b *testing.B) {
 				if err := pool.Call(ctx, "predict", req, &resp); err != nil {
 					b.Fatalf("call failed: %v", err)
 				}
+			}
+		})
+	}
+}
+
+// BenchmarkTracing_PureOverhead measures isolated tracing overhead
+// without Python worker overhead. This provides a baseline for understanding
+// the cost of span creation/ending independent of IPC operations.
+func BenchmarkTracing_PureOverhead(b *testing.B) {
+	configs := []struct {
+		name     string
+		enabled  bool
+		sampling float64
+	}{
+		{"Disabled", false, 0},
+		{"Enabled_0pct", true, 0.0},
+		{"Enabled_1pct", true, 0.01},
+		{"Enabled_100pct", true, 1.0},
+	}
+
+	for _, cfg := range configs {
+		b.Run(cfg.name, func(b *testing.B) {
+			var provider *telemetry.Provider
+			var shutdown func(context.Context) error
+
+			if cfg.enabled {
+				provider, shutdown = telemetry.NewProvider(telemetry.Config{
+					ServiceName:  "bench-pure",
+					Enabled:      true,
+					SamplingRate: cfg.sampling,
+					ExporterType: "stdout",
+				})
+				defer shutdown(context.Background())
+			}
+
+			tracer := provider.Tracer("bench")
+			ctx := context.Background()
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, span := tracer.Start(ctx, "test-span")
+				span.End()
 			}
 		})
 	}

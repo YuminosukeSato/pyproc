@@ -75,7 +75,7 @@ func main() {
 }
 ```
 
-Access metrics at `http://localhost:9090/metrics`.
+Access metrics at your configured Prometheus endpoint (typically `:9090/metrics` or `:8080/metrics` depending on your setup).
 
 ## Configuration
 

@@ -17,7 +17,7 @@
 //
 //	// Create pool with telemetry
 //	pool, _ := pyproc.NewPool(poolOpts, logger)
-//	pool.WithTelemetry(provider.Tracer("my-service"))
+//	pool.WithTracer(provider.Tracer("my-service"))
 //
 //	// Calls are automatically traced
 //	ctx := context.Background()
